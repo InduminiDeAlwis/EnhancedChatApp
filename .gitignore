@@ -1,0 +1,60 @@
+# General
+*.class
+*.log
+*.tmp
+*.swp
+*~
+
+# Compiled archives
+*.jar
+*.war
+*.ear
+
+# Build directories
+target/
+build/
+out/
+.gradle/
+
+# Maven
+.mvn/
+dependency-reduced-pom.xml
+release.properties
+
+# Eclipse
+.project
+.classpath
+.settings/
+bin/
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# VS Code
+.vscode/
+
+# Operating System files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Keys and certificates
+*.key
+*.pem
+*.p12
+*.jks
+
+# Node
+node_modules/
+
+# Common temp files
+hs_err_pid*
+
+# Chat app specific
+chat_history.txt
+
+# OneDrive / Office temp
+~$*
