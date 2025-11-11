@@ -1,5 +1,7 @@
 package client;
 
-public class ClientListener {
-    
+import common.Message;
+
+public interface ClientListener {
+    void onMessageReceived(Message msg);
 }
