@@ -10,14 +10,14 @@ import java.awt.*;
  */
 public class UIUtils {
 
-    // Color scheme for the application
-    public static final Color PRIMARY_COLOR = new Color(52, 152, 219);      // Blue
-    public static final Color SECONDARY_COLOR = new Color(46, 204, 113);    // Green
-    public static final Color DANGER_COLOR = new Color(231, 76, 60);        // Red
-    public static final Color BACKGROUND_COLOR = new Color(236, 240, 241);  // Light gray
-    public static final Color TEXT_COLOR = new Color(44, 62, 80);           // Dark gray
-    public static final Color SYSTEM_MSG_COLOR = new Color(149, 165, 166);  // Gray
-    public static final Color PRIVATE_MSG_COLOR = new Color(155, 89, 182);  // Purple
+    // Color scheme for the application - More vibrant and visible!
+    public static final Color PRIMARY_COLOR = new Color(33, 150, 243);      // Bright Blue
+    public static final Color SECONDARY_COLOR = new Color(76, 175, 80);     // Green
+    public static final Color DANGER_COLOR = new Color(244, 67, 54);        // Red
+    public static final Color BACKGROUND_COLOR = new Color(250, 250, 250);  // Almost white
+    public static final Color TEXT_COLOR = new Color(33, 33, 33);           // Almost black
+    public static final Color SYSTEM_MSG_COLOR = new Color(158, 158, 158);  // Gray
+    public static final Color PRIVATE_MSG_COLOR = new Color(156, 39, 176);  // Purple
 
     /**
      * Create a styled JButton
@@ -27,9 +27,25 @@ public class UIUtils {
         button.setBackground(backgroundColor);
         button.setForeground(Color.WHITE);
         button.setFocusPainted(false);
-        button.setFont(new Font("Arial", Font.BOLD, 12));
-        button.setBorder(BorderFactory.createEmptyBorder(8, 15, 8, 15));
+        button.setFont(new Font("Arial", Font.BOLD, 13));
+        button.setOpaque(true); // Make sure background color shows
+        button.setBorderPainted(true);
+        button.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(backgroundColor.darker(), 2),
+            BorderFactory.createEmptyBorder(8, 15, 8, 15)
+        ));
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+        // Add hover effect
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(backgroundColor.brighter());
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(backgroundColor);
+            }
+        });
+
         return button;
     }
 

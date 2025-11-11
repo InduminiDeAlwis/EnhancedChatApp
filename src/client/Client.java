@@ -68,28 +68,50 @@ public class Client {
 
         // Send username to server
         out.println(username);
+        out.println(username);
 
-        // Wait for server response
-        String response = in.readLine();
-        Message responseMsg = Message.fromProtocol(response);
+        // Server sends multiple messages: join broadcast, then welcome, then user list
+        // Read up to 3 messages to find the welcome message
+        for (int i = 0; i < 3; i++) {
+            String response = in.readLine();
 
-        if (responseMsg == null) {
-            return false;
+            if (response == null) {
+                System.err.println("No response from server (attempt " + (i+1) + ")");
+                if (i == 2) return false; // Give up after 3 tries
+                continue;
+            }
+
+            System.out.println("Server response " + (i+1) + ": " + response);
+
+            Message responseMsg = Message.fromProtocol(response);
+
+            if (responseMsg == null) {
+                System.err.println("Invalid message format, trying next...");
+                continue; // Try next line
+            }
+
+            // Check for error first
+            if (responseMsg.getType() == MessageType.ERROR) {
+                System.err.println("Login failed: " + responseMsg.getContent());
+                return false;
+            }
+
+            // Check for welcome message (login success)
+            if (responseMsg.getType() == MessageType.SYSTEM &&
+                responseMsg.getContent().contains("Welcome")) {
+                this.username = username;
+                System.out.println("✓ Logged in successfully as: " + username);
+                return true;
+            }
+
+            // Otherwise it might be join broadcast or user list, keep reading
+            System.out.println("Not a welcome message, reading next...");
         }
 
-        // Check if login successful (welcome message = success)
-        if (responseMsg.getType() == MessageType.SYSTEM &&
-            responseMsg.getContent().contains("Welcome")) {
-            this.username = username;
-            System.out.println(" Logged in as: " + username);
-            return true;
-        } else if (responseMsg.getType() == MessageType.ERROR) {
-            System.err.println("Login failed: " + responseMsg.getContent());
-            return false;
-        }
-
+        System.err.println("Login failed: Did not receive welcome message after 3 attempts");
         return false;
     }
+
 
     /**
      * Start listening for messages from server
