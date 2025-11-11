@@ -55,6 +55,12 @@ hs_err_pid*
 
 # Chat app specific
 chat_history.txt
+# Ignore chat history anywhere
+**/chat_history.txt
+src/log/chat_history.txt
+
+# Libraries directory (if you vendor jars here)
+lib/
 
 # OneDrive / Office temp
 ~$*
