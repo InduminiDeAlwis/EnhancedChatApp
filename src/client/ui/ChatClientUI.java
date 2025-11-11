@@ -1,6 +1,7 @@
 package client.ui;
 
 import client.Client;
+import client.utils.UIUtils;
 import common.Message;
 import common.MessageType;
 
@@ -17,22 +18,36 @@ public class ChatClientUI extends JFrame {
 
     public ChatClientUI(Client client) {
         this.client = client;
+        UIUtils.initLookAndFeel();
+
         setTitle("Chat - " + client.getUsername());
-        setSize(500, 400);
+        setSize(640, 480);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
+
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+        root.setBackground(UIUtils.BACKGROUND);
 
         chatArea = new JTextArea();
         chatArea.setEditable(false);
-        add(new JScrollPane(chatArea), BorderLayout.CENTER);
+        chatArea.setLineWrap(true);
+        chatArea.setWrapStyleWord(true);
+        chatArea.setBackground(UIUtils.SURFACE);
+        chatArea.setBorder(BorderFactory.createLineBorder(new Color(220,220,220)));
 
-        JPanel bottomPanel = new JPanel(new BorderLayout());
+        root.add(new JScrollPane(chatArea), BorderLayout.CENTER);
+
+        JPanel bottomPanel = new JPanel(new BorderLayout(8,8));
+        bottomPanel.setOpaque(false);
         messageField = new JTextField();
+        UIUtils.styleTextField(messageField);
         sendButton = new JButton("Send");
+        UIUtils.styleButton(sendButton);
+
         bottomPanel.add(messageField, BorderLayout.CENTER);
         bottomPanel.add(sendButton, BorderLayout.EAST);
-        add(bottomPanel, BorderLayout.SOUTH);
+        root.add(bottomPanel, BorderLayout.SOUTH);
 
         sendButton.addActionListener(this::sendMessage);
         messageField.addActionListener(this::sendMessage);
@@ -40,6 +55,7 @@ public class ChatClientUI extends JFrame {
         // Start listening for messages
         client.listenForMessages();
 
+        setContentPane(root);
         setVisible(true);
     }
 

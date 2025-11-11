@@ -1,6 +1,7 @@
 package client.ui;
 
 import client.Client;
+import client.utils.UIUtils;
 
 import javax.swing.*;
 import java.awt.*;
@@ -12,21 +13,44 @@ public class LoginUI extends JFrame {
     private JButton loginButton;
 
     public LoginUI() {
+        UIUtils.initLookAndFeel();
+
         setTitle("Login");
-        setSize(300, 150);
+        setSize(360, 180);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
-        setLayout(new BorderLayout());
+
+        // root panel with padding
+        JPanel root = new JPanel(new BorderLayout());
+        root.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+        root.setBackground(UIUtils.BACKGROUND);
+
+        JPanel center = new JPanel();
+        center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
+        center.setOpaque(false);
+
+        JLabel label = new JLabel("Enter username:");
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         usernameField = new JTextField();
-        loginButton = new JButton("Login");
+        usernameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 28));
+        UIUtils.styleTextField(usernameField);
+        usernameField.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        add(new JLabel("Enter username:"), BorderLayout.NORTH);
-        add(usernameField, BorderLayout.CENTER);
-        add(loginButton, BorderLayout.SOUTH);
+        center.add(label);
+        center.add(Box.createRigidArea(new Dimension(0,8)));
+        center.add(usernameField);
+
+        loginButton = new JButton("Login");
+        loginButton.setAlignmentX(Component.CENTER_ALIGNMENT);
+        UIUtils.styleButton(loginButton);
+
+        root.add(center, BorderLayout.CENTER);
+        root.add(loginButton, BorderLayout.SOUTH);
 
         loginButton.addActionListener(this::handleLogin);
 
+        setContentPane(root);
         setVisible(true);
     }
 
