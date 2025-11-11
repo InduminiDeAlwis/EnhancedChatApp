@@ -99,6 +99,41 @@ public class AdminConsole implements Runnable {
                 clearScreen();
                 break;
                 
+            case "logs":
+            case "chatlogs":
+                if (parts.length > 1) {
+                    try {
+                        int lines = Integer.parseInt(parts[1]);
+                        viewChatLogs(lines);
+                    } catch (NumberFormatException e) {
+                        System.out.println("Invalid number. Usage: logs <number>");
+                    }
+                } else {
+                    viewChatLogs(20); // Default 20 lines
+                }
+                break;
+                
+            case "serverlogs":
+                if (parts.length > 1) {
+                    try {
+                        int lines = Integer.parseInt(parts[1]);
+                        viewServerLogs(lines);
+                    } catch (NumberFormatException e) {
+                        System.out.println("Invalid number. Usage: serverlogs <number>");
+                    }
+                } else {
+                    viewServerLogs(20); // Default 20 lines
+                }
+                break;
+                
+            case "search":
+                if (parts.length > 1) {
+                    searchLogs(parts[1]);
+                } else {
+                    System.out.println("Usage: search <term>");
+                }
+                break;
+                
             default:
                 System.out.println("Unknown command: " + cmd);
                 System.out.println("Type 'help' for available commands");
@@ -118,6 +153,9 @@ public class AdminConsole implements Runnable {
         System.out.println("║ stats/status      - Show server statistics           ║");
         System.out.println("║ announce <msg>    - Send server announcement         ║");
         System.out.println("║ kick <username>   - Kick a user from the server      ║");
+        System.out.println("║ logs [n]          - View recent chat logs (def: 20)  ║");
+        System.out.println("║ serverlogs [n]    - View server logs (default: 20)   ║");
+        System.out.println("║ search <term>     - Search in chat logs              ║");
         System.out.println("║ clear/cls         - Clear the screen                 ║");
         System.out.println("║ shutdown/exit     - Shutdown the server              ║");
         System.out.println("╚══════════════════════════════════════════════════════╝\n");
@@ -254,5 +292,93 @@ public class AdminConsole implements Runnable {
         } catch (IOException e) {
             System.err.println("Error reading confirmation: " + e.getMessage());
         }
+    }
+    
+    /**
+     * View recent chat logs
+     */
+    private void viewChatLogs(int lines) {
+        ChatLogger logger = server.getChatLogger();
+        List<String> logs = logger.getRecentChatLogs(lines);
+        
+        System.out.println("\n╔══════════════════════════════════════════════════════╗");
+        System.out.println("║         Recent Chat Logs (Last " + lines + " lines)          ║");
+        System.out.println("╠══════════════════════════════════════════════════════╣");
+        
+        if (logs.isEmpty()) {
+            System.out.println("║ No chat logs available                               ║");
+        } else {
+            for (String log : logs) {
+                // Truncate long lines to fit in the box
+                if (log.length() > 52) {
+                    log = log.substring(0, 49) + "...";
+                }
+                System.out.println(log);
+            }
+        }
+        
+        System.out.println("╚══════════════════════════════════════════════════════╝\n");
+    }
+    
+    /**
+     * View recent server logs
+     */
+    private void viewServerLogs(int lines) {
+        ChatLogger logger = server.getChatLogger();
+        List<String> logs = logger.getRecentServerLogs(lines);
+        
+        System.out.println("\n╔══════════════════════════════════════════════════════╗");
+        System.out.println("║       Recent Server Logs (Last " + lines + " lines)        ║");
+        System.out.println("╠══════════════════════════════════════════════════════╣");
+        
+        if (logs.isEmpty()) {
+            System.out.println("║ No server logs available                             ║");
+        } else {
+            for (String log : logs) {
+                // Truncate long lines to fit in the box
+                if (log.length() > 52) {
+                    log = log.substring(0, 49) + "...";
+                }
+                System.out.println(log);
+            }
+        }
+        
+        System.out.println("╚══════════════════════════════════════════════════════╝\n");
+    }
+    
+    /**
+     * Search logs for a specific term
+     */
+    private void searchLogs(String searchTerm) {
+        ChatLogger logger = server.getChatLogger();
+        List<String> results = logger.searchLogs(searchTerm, true);
+        
+        System.out.println("\n╔══════════════════════════════════════════════════════╗");
+        System.out.println("║         Search Results for: " + 
+            String.format("%-25s", searchTerm.substring(0, Math.min(25, searchTerm.length()))) + " ║");
+        System.out.println("╠══════════════════════════════════════════════════════╣");
+        
+        if (results.isEmpty()) {
+            System.out.println("║ No results found                                     ║");
+        } else {
+            System.out.println("║ Found " + results.size() + " matching entries:                        ║");
+            System.out.println("╠══════════════════════════════════════════════════════╣");
+            
+            int count = 0;
+            for (String result : results) {
+                if (count >= 10) {
+                    System.out.println("║ ... (" + (results.size() - 10) + " more results)                             ║");
+                    break;
+                }
+                // Truncate long lines to fit in the box
+                if (result.length() > 52) {
+                    result = result.substring(0, 49) + "...";
+                }
+                System.out.println(result);
+                count++;
+            }
+        }
+        
+        System.out.println("╚══════════════════════════════════════════════════════╝\n");
     }
 }

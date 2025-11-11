@@ -104,6 +104,14 @@ public class PrivateChatHandler {
             senderHandler.sendMessage(notification);
         }
         
+        // Log file transfer request
+        server.getChatLogger().logFileTransfer(
+            message.getSender(), 
+            message.getReceiver(), 
+            message.getContent(), 
+            "REQUESTED"
+        );
+        
         System.out.println("File transfer request forwarded: " + message.getSender() + 
             " -> " + message.getReceiver());
     }
@@ -116,6 +124,14 @@ public class PrivateChatHandler {
         // Forward the acceptance to the original sender
         receiverHandler.sendMessage(message);
         
+        // Log file transfer acceptance
+        server.getChatLogger().logFileTransfer(
+            message.getReceiver(), 
+            message.getSender(), 
+            message.getContent(), 
+            "ACCEPTED"
+        );
+        
         System.out.println("File transfer accepted: " + message.getReceiver() + 
             " accepted from " + message.getSender());
     }
@@ -126,6 +142,14 @@ public class PrivateChatHandler {
     private void handleFileTransferReject(Message message, ClientHandler receiverHandler) {
         // Forward the rejection to the original sender
         receiverHandler.sendMessage(message);
+        
+        // Log file transfer rejection
+        server.getChatLogger().logFileTransfer(
+            message.getReceiver(), 
+            message.getSender(), 
+            message.getContent(), 
+            "REJECTED"
+        );
         
         System.out.println("File transfer rejected: " + message.getReceiver() + 
             " rejected from " + message.getSender());
@@ -183,6 +207,9 @@ public class PrivateChatHandler {
                 Constants.SERVER_NAME, "File '" + filename + "' received successfully from " + sender);
             receiverHandler.sendMessage(msg);
         }
+        
+        // Log file transfer completion
+        server.getChatLogger().logFileTransfer(sender, receiver, filename, "COMPLETED");
         
         System.out.println("File transfer completed: " + filename + " (" + sender + 
             " -> " + receiver + ")");

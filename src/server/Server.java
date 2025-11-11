@@ -22,12 +22,14 @@ public class Server {
     private final List<String> onlineUsers;
     private boolean running;
     private int clientCounter;
+    private ChatLogger chatLogger;
     
     public Server() {
         this.clientHandlers = new ConcurrentHashMap<>();
         this.onlineUsers = new ArrayList<>();
         this.running = false;
         this.clientCounter = 0;
+        this.chatLogger = new ChatLogger();
     }
     
     public static Server getInstance() {
@@ -111,6 +113,9 @@ public class Server {
         System.out.println("✓ User '" + username + "' registered successfully. Total users: " + 
             clientHandlers.size());
         
+        // Log user connection
+        chatLogger.logUserConnected(username);
+        
         // Notify all clients about the new user
         broadcastMessage(new Message(MessageType.USER_JOINED, Constants.SERVER_NAME, 
             username + " " + Constants.CONNECT_MESSAGE));
@@ -135,6 +140,9 @@ public class Server {
         System.out.println("✗ User '" + username + "' disconnected. Total users: " + 
             clientHandlers.size());
         
+        // Log user disconnection
+        chatLogger.logUserDisconnected(username);
+        
         // Notify all clients about the user leaving
         broadcastMessage(new Message(MessageType.USER_LEFT, Constants.SERVER_NAME, 
             username + " " + Constants.DISCONNECT_MESSAGE));
@@ -147,6 +155,11 @@ public class Server {
      * Broadcast a message to all connected clients
      */
     public void broadcastMessage(Message message) {
+        // Log the message if it's a chat message
+        if (message.getType() == MessageType.PUBLIC_MESSAGE) {
+            chatLogger.logChatMessage(message);
+        }
+        
         for (ClientHandler handler : clientHandlers.values()) {
             handler.sendMessage(message);
         }
@@ -160,6 +173,10 @@ public class Server {
         ClientHandler handler = clientHandlers.get(receiver);
         
         if (handler != null) {
+            // Log private message
+            if (message.getType() == MessageType.PRIVATE_MESSAGE) {
+                chatLogger.logChatMessage(message);
+            }
             handler.sendMessage(message);
             return true;
         }
@@ -204,6 +221,13 @@ public class Server {
     }
     
     /**
+     * Get the chat logger instance
+     */
+    public ChatLogger getChatLogger() {
+        return chatLogger;
+    }
+    
+    /**
      * Shutdown the server gracefully
      */
     public void shutdown() {
@@ -226,6 +250,11 @@ public class Server {
             }
         } catch (IOException e) {
             System.err.println("Error closing server socket: " + e.getMessage());
+        }
+        
+        // Close chat logger
+        if (chatLogger != null) {
+            chatLogger.close();
         }
         
         System.out.println("Server shutdown complete.");
