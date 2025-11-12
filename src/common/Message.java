@@ -4,21 +4,10 @@ import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class Message implements Serializable {
-    private static final long serialVersionUID = 1L;
-    
-    private String type;
-    private String sender;
-    private String receiver;
-    private String content;
-    private LocalDateTime timestamp;
-    
-    public Message(String type, String sender, String receiver, String content) {
 /**
  * Represents a message in the Enhanced Chat Application
  * This class encapsulates all information needed for different types of
- * messages
- * including text messages, file transfers, and system notifications
+ * messages including text messages, file transfers, and system notifications
  */
 public class Message implements Serializable {
 
@@ -26,7 +15,7 @@ public class Message implements Serializable {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     // Message properties
-    private MessageType type;
+    private String type;
     private String sender;
     private String receiver; // null for broadcast, specific username for private/file transfer
     private String content;
@@ -43,7 +32,7 @@ public class Message implements Serializable {
     /**
      * Constructor for basic text messages
      */
-    public Message(MessageType type, String sender, String content) {
+    public Message(String type, String sender, String content) {
         this.type = type;
         this.sender = sender;
         this.content = content;
@@ -54,75 +43,18 @@ public class Message implements Serializable {
     /**
      * Constructor for private messages or targeted messages
      */
-    public Message(MessageType type, String sender, String receiver, String content) {
+    public Message(String type, String sender, String receiver, String content) {
         this.type = type;
         this.sender = sender;
         this.receiver = receiver;
         this.content = content;
-        this.timestamp = LocalDateTime.now();
-    }
-    
-    public Message(String type, String sender, String content) {
-        this(type, sender, null, content);
-    }
-    
-    public String getType() {
-        return type;
-    }
-    
-    public void setType(String type) {
-        this.type = type;
-    }
-    
-    public String getSender() {
-        return sender;
-    }
-    
-    public void setSender(String sender) {
-        this.sender = sender;
-    }
-    
-    public String getReceiver() {
-        return receiver;
-    }
-    
-    public void setReceiver(String receiver) {
-        this.receiver = receiver;
-    }
-    
-    public String getContent() {
-        return content;
-    }
-    
-    public void setContent(String content) {
-        this.content = content;
-    }
-    
-    public LocalDateTime getTimestamp() {
-        return timestamp;
-    }
-    
-    public String getFormattedTimestamp() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        return timestamp.format(formatter);
-    }
-    
-    @Override
-    public String toString() {
-        if (receiver != null && !receiver.isEmpty()) {
-            return String.format("[%s] [%s → %s]: %s", 
-                getFormattedTimestamp(), sender, receiver, content);
-        } else {
-            return String.format("[%s] [%s → All]: %s", 
-                getFormattedTimestamp(), sender, content);
-        }
         this.timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
     }
 
     /**
      * Constructor with additional data field
      */
-    public Message(MessageType type, String sender, String receiver, String content, Object data) {
+    public Message(String type, String sender, String receiver, String content, Object data) {
         this.type = type;
         this.sender = sender;
         this.receiver = receiver;
@@ -134,7 +66,7 @@ public class Message implements Serializable {
     /**
      * Constructor for file transfer messages
      */
-    public Message(MessageType type, String sender, String receiver,
+    public Message(String type, String sender, String receiver,
             String filename, long fileSize, String fileId) {
         this.type = type;
         this.sender = sender;
@@ -148,11 +80,11 @@ public class Message implements Serializable {
 
     // ============ GETTERS AND SETTERS ============
 
-    public MessageType getType() {
+    public String getType() {
         return type;
     }
 
-    public void setType(MessageType type) {
+    public void setType(String type) {
         this.type = type;
     }
 
@@ -229,6 +161,10 @@ public class Message implements Serializable {
         this.receiver = targetUser;
     }
 
+    public String getFormattedTimestamp() {
+        return timestamp;
+    }
+
     // ============ UTILITY METHODS ============
 
     /**
@@ -243,14 +179,15 @@ public class Message implements Serializable {
      */
     public boolean isPrivate() {
         return receiver != null && !receiver.trim().isEmpty() &&
-                (type == MessageType.PRIVATE || type == MessageType.PRIVATE_MESSAGE);
+                (MessageType.PRIVATE_MESSAGE.equals(type));
     }
 
     /**
      * Check if this is a file transfer message
      */
     public boolean isFileTransfer() {
-        return type != null && type.isFileTransferMessage();
+        return type != null && (MessageType.FILE_TRANSFER.equals(type) || 
+                                MessageType.FILE_TRANSFER_REQUEST.equals(type));
     }
 
     /**
@@ -262,7 +199,7 @@ public class Message implements Serializable {
 
         if (isPrivate()) {
             sb.append("[Private from ").append(sender).append("] ");
-        } else if (type == MessageType.SYSTEM) {
+        } else if (MessageType.ERROR.equals(type)) {
             sb.append("[SYSTEM] ");
         } else {
             sb.append("[").append(sender).append("] ");
@@ -279,7 +216,7 @@ public class Message implements Serializable {
      */
     public String toProtocolString() {
         StringBuilder sb = new StringBuilder();
-        sb.append(type.name()).append(Constants.MESSAGE_DELIMITER);
+        sb.append(type).append(Constants.MESSAGE_DELIMITER);
         sb.append(sender != null ? sender : "").append(Constants.MESSAGE_DELIMITER);
         sb.append(receiver != null ? receiver : "").append(Constants.MESSAGE_DELIMITER);
         sb.append(content != null ? content : "").append(Constants.MESSAGE_DELIMITER);
@@ -300,7 +237,7 @@ public class Message implements Serializable {
             throw new IllegalArgumentException("Invalid protocol string format");
         }
 
-        MessageType type = MessageType.valueOf(parts[0]);
+        String type = parts[0];
         String sender = parts[1].isEmpty() ? null : parts[1];
         String receiver = parts[2].isEmpty() ? null : parts[2];
         String content = parts[3].isEmpty() ? null : parts[3];
@@ -329,7 +266,12 @@ public class Message implements Serializable {
 
     @Override
     public String toString() {
-        return String.format("[%s] %s -> %s: %s (Type: %s)",
-                timestamp, sender, receiver != null ? receiver : "ALL", content, type);
+        if (receiver != null && !receiver.isEmpty()) {
+            return String.format("[%s] [%s → %s]: %s", 
+                timestamp, sender, receiver, content);
+        } else {
+            return String.format("[%s] [%s → All]: %s", 
+                timestamp, sender, content);
+        }
     }
 }
