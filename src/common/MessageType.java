@@ -6,11 +6,52 @@ package common;
  */
 public enum MessageType {
     
+    // ============ AUTHENTICATION & CONNECTION ============
+    /**
+     * Client login request with username
+     */
+    LOGIN,
+    
+    /**
+     * Successful login response
+     */
+    LOGIN_SUCCESS,
+    
+    /**
+     * Failed login response
+     */
+    LOGIN_FAILED,
+    
+    /**
+     * Server response to login (success/failure) - legacy support
+     */
+    LOGIN_RESPONSE,
+    
+    /**
+     * Client logout/disconnect notification
+     */
+    LOGOUT,
+    
+    /**
+     * Client disconnect notification - legacy support
+     */
+    DISCONNECT,
+    
     // ============ BASIC CHAT MESSAGES ============
     /**
      * Regular text message broadcast to all clients
      */
     TEXT,
+    
+    /**
+     * Public broadcast message
+     */
+    PUBLIC_MESSAGE,
+    
+    /**
+     * Broadcast message - legacy support
+     */
+    BROADCAST,
     
     /**
      * System notification (user joined, left, etc.)
@@ -22,21 +63,10 @@ public enum MessageType {
      */
     PRIVATE,
     
-    // ============ CONNECTION MESSAGES ============
     /**
-     * Client login request with username
+     * Private message - alternative naming
      */
-    LOGIN,
-    
-    /**
-     * Server response to login (success/failure)
-     */
-    LOGIN_RESPONSE,
-    
-    /**
-     * Client disconnect notification
-     */
-    DISCONNECT,
+    PRIVATE_MESSAGE,
     
     // ============ FILE TRANSFER MESSAGES ============
     /**
@@ -61,6 +91,11 @@ public enum MessageType {
     FILE_METADATA,
     
     /**
+     * File transfer start notification
+     */
+    FILE_TRANSFER_START,
+    
+    /**
      * Actual file data chunk being transferred
      */
     FILE_CHUNK,
@@ -71,16 +106,26 @@ public enum MessageType {
     FILE_COMPLETE,
     
     /**
+     * File transfer completion - alternative naming
+     */
+    FILE_TRANSFER_COMPLETE,
+    
+    /**
      * File transfer error/failure notification
      */
     FILE_ERROR,
+    
+    /**
+     * File transfer error - alternative naming
+     */
+    FILE_TRANSFER_ERROR,
     
     /**
      * File transfer progress update
      */
     FILE_PROGRESS,
     
-    // ============ ADMIN MESSAGES ============
+    // ============ USER MANAGEMENT ============
     /**
      * Request for list of online users
      */
@@ -92,16 +137,57 @@ public enum MessageType {
     USER_LIST_RESPONSE,
     
     /**
+     * User list - alternative naming
+     */
+    USER_LIST,
+    
+    /**
+     * User joined notification
+     */
+    USER_JOINED,
+    
+    /**
+     * User left notification
+     */
+    USER_LEFT,
+    
+    /**
      * Admin command to kick a user
      */
     KICK_USER,
     
+    // ============ SERVER COMMUNICATION ============
     /**
      * Broadcast message from admin
      */
     ADMIN_BROADCAST,
     
-    // ============ ERROR MESSAGES ============
+    /**
+     * Server announcement
+     */
+    SERVER_ANNOUNCEMENT,
+    
+    /**
+     * Server error message
+     */
+    SERVER_ERROR,
+    
+    /**
+     * Ping message for connection check
+     */
+    PING,
+    
+    /**
+     * Pong response to ping
+     */
+    PONG,
+    
+    // ============ STATUS & ERROR MESSAGES ============
+    /**
+     * General success message
+     */
+    SUCCESS,
+    
     /**
      * General error message
      */
@@ -111,6 +197,11 @@ public enum MessageType {
      * Authentication error
      */
     AUTH_ERROR,
+    
+    /**
+     * Information message
+     */
+    INFO,
     
     /**
      * Invalid message format error
@@ -126,9 +217,12 @@ public enum MessageType {
                this == FILE_TRANSFER_ACCEPT ||
                this == FILE_TRANSFER_REJECT ||
                this == FILE_METADATA ||
+               this == FILE_TRANSFER_START ||
                this == FILE_CHUNK ||
                this == FILE_COMPLETE ||
+               this == FILE_TRANSFER_COMPLETE ||
                this == FILE_ERROR ||
+               this == FILE_TRANSFER_ERROR ||
                this == FILE_PROGRESS;
     }
     
@@ -139,8 +233,16 @@ public enum MessageType {
     public boolean isSystemMessage() {
         return this == SYSTEM ||
                this == LOGIN_RESPONSE ||
+               this == LOGIN_SUCCESS ||
+               this == LOGIN_FAILED ||
                this == USER_LIST_RESPONSE ||
+               this == USER_LIST ||
+               this == USER_JOINED ||
+               this == USER_LEFT ||
+               this == SERVER_ANNOUNCEMENT ||
+               this == SERVER_ERROR ||
                this == ERROR ||
-               this == AUTH_ERROR;
+               this == AUTH_ERROR ||
+               this == INFO;
     }
 }

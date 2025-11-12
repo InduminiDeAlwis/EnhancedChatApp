@@ -27,6 +27,9 @@ public class Message implements Serializable {
     private long fileSize;
     private String fileId; // Unique identifier for file transfer session
     
+    // Additional data field for extensibility
+    private Object data; // For additional data like file info or custom payloads
+    
     /**
      * Constructor for basic text messages
      */
@@ -46,6 +49,18 @@ public class Message implements Serializable {
         this.sender = sender;
         this.receiver = receiver;
         this.content = content;
+        this.timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
+    }
+    
+    /**
+     * Constructor with additional data field
+     */
+    public Message(MessageType type, String sender, String receiver, String content, Object data) {
+        this.type = type;
+        this.sender = sender;
+        this.receiver = receiver;
+        this.content = content;
+        this.data = data;
         this.timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
     }
     
@@ -102,6 +117,10 @@ public class Message implements Serializable {
         return timestamp;
     }
     
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
+    }
+    
     public String getFilename() {
         return filename;
     }
@@ -126,6 +145,23 @@ public class Message implements Serializable {
         this.fileId = fileId;
     }
     
+    public Object getData() {
+        return data;
+    }
+    
+    public void setData(Object data) {
+        this.data = data;
+    }
+    
+    // Legacy support for targetUser (maps to receiver)
+    public String getTargetUser() {
+        return receiver;
+    }
+    
+    public void setTargetUser(String targetUser) {
+        this.receiver = targetUser;
+    }
+    
     // ============ UTILITY METHODS ============
     
     /**
@@ -139,7 +175,8 @@ public class Message implements Serializable {
      * Check if this is a private message
      */
     public boolean isPrivate() {
-        return receiver != null && !receiver.trim().isEmpty() && type == MessageType.PRIVATE;
+        return receiver != null && !receiver.trim().isEmpty() && 
+               (type == MessageType.PRIVATE || type == MessageType.PRIVATE_MESSAGE);
     }
     
     /**
@@ -224,7 +261,7 @@ public class Message implements Serializable {
     
     @Override
     public String toString() {
-        return String.format("Message[type=%s, sender=%s, receiver=%s, content=%s, timestamp=%s]",
-                           type, sender, receiver, content, timestamp);
+        return String.format("[%s] %s -> %s: %s (Type: %s)", 
+            timestamp, sender, receiver != null ? receiver : "ALL", content, type);
     }
 }
