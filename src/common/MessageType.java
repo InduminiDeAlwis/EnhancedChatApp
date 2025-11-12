@@ -1,6 +1,13 @@
 package common;
 
 /**
+ * Types of messages exchanged between client and server.
+ */
+public enum MessageType {
+	LOGIN,
+	LOGOUT,
+	BROADCAST,
+	PRIVATE
  * Enum representing different types of messages in the chat system
  */
 public enum MessageType {
