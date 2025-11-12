@@ -4,381 +4,557 @@ import common.Constants;
 import common.Message;
 import common.MessageType;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import javax.swing.border.TitledBorder;
+import java.awt.*;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.io.*;
+import java.net.Socket;
 
-/**
- * Admin console for server management
- */
-public class AdminConsole implements Runnable {
-    private final Server server;
-    private final BufferedReader reader;
-    private boolean running;
-    private final LocalDateTime startTime;
+public class AdminConsole extends JFrame {
+    private Socket socket;
+    private ObjectOutputStream output;
+    private ObjectInputStream input;
+    private boolean connected = false;
     
-    public AdminConsole(Server server) {
-        this.server = server;
-        this.reader = new BufferedReader(new InputStreamReader(System.in));
-        this.running = true;
-        this.startTime = LocalDateTime.now();
+    // GUI Components
+    private JTextArea clientListArea;
+    private JTextArea chatHistoryArea;
+    private JTextArea systemStatsArea;
+    private JTextField kickUserField;
+    private JButton connectButton;
+    private JButton refreshClientsButton;
+    private JButton refreshHistoryButton;
+    private JButton refreshStatsButton;
+    private JButton kickButton;
+    private JLabel statusLabel;
+    
+    public AdminConsole() {
+        initializeUI();
     }
     
-    @Override
-    public void run() {
-        System.out.println("\n╔══════════════════════════════════════════════════════╗");
-        System.out.println("║           Admin Console Started                      ║");
-        System.out.println("║   Type 'help' for available commands                 ║");
-        System.out.println("╚══════════════════════════════════════════════════════╝\n");
+    private void initializeUI() {
+        setTitle(Constants.ADMIN_TITLE);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setSize(1000, 700);
+        setLocationRelativeTo(null);
         
-        while (running) {
-            try {
-                System.out.print("admin> ");
-                String command = reader.readLine();
-                
-                if (command != null && !command.trim().isEmpty()) {
-                    processCommand(command.trim());
-                }
-                
-            } catch (IOException e) {
-                System.err.println("Error reading command: " + e.getMessage());
+        // Create main panel
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        mainPanel.setBackground(new Color(240, 240, 245));
+        
+        // Header Panel
+        JPanel headerPanel = createHeaderPanel();
+        mainPanel.add(headerPanel, BorderLayout.NORTH);
+        
+        // Center Panel with tabs
+        JTabbedPane tabbedPane = new JTabbedPane();
+        tabbedPane.setFont(new Font("Arial", Font.BOLD, 12));
+        
+        // Connected Clients Tab
+        JPanel clientsPanel = createClientsPanel();
+        tabbedPane.addTab("📋 Connected Clients", clientsPanel);
+        
+        // Chat History Tab
+        JPanel historyPanel = createHistoryPanel();
+        tabbedPane.addTab("💬 Chat History", historyPanel);
+        
+        // System Statistics Tab
+        JPanel statsPanel = createStatsPanel();
+        tabbedPane.addTab("📊 System Statistics", statsPanel);
+        
+        // Admin Actions Tab
+        JPanel actionsPanel = createActionsPanel();
+        tabbedPane.addTab("⚙️ Admin Actions", actionsPanel);
+        
+        mainPanel.add(tabbedPane, BorderLayout.CENTER);
+        
+        // Status bar
+        JPanel statusPanel = createStatusPanel();
+        mainPanel.add(statusPanel, BorderLayout.SOUTH);
+        
+        add(mainPanel);
+        
+        // Add window listener for cleanup
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                disconnect();
             }
+        });
+        
+        // Initially disable all controls except connect button
+        setControlsEnabled(false);
+    }
+    
+    private JPanel createHeaderPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(new Color(52, 73, 94));
+        panel.setBorder(new EmptyBorder(15, 15, 15, 15));
+        
+        JLabel titleLabel = new JLabel("🛡️ Admin Console - Enhanced Chat System");
+        titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        titleLabel.setForeground(Color.WHITE);
+        
+        connectButton = new JButton("Connect to Server");
+        connectButton.setFont(new Font("Arial", Font.BOLD, 14));
+        connectButton.setBackground(new Color(46, 204, 113));
+        connectButton.setForeground(Color.WHITE);
+        connectButton.setFocusPainted(false);
+        connectButton.setBorderPainted(false);
+        connectButton.setPreferredSize(new Dimension(180, 40));
+        connectButton.addActionListener(e -> connectToServer());
+        
+        panel.add(titleLabel, BorderLayout.WEST);
+        panel.add(connectButton, BorderLayout.EAST);
+        
+        return panel;
+    }
+    
+    private JPanel createClientsPanel() {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        
+        // Controls panel
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        refreshClientsButton = new JButton("🔄 Refresh");
+        refreshClientsButton.addActionListener(e -> requestConnectedClients());
+        controlPanel.add(refreshClientsButton);
+        
+        JLabel infoLabel = new JLabel("💡 Auto-updates when clients join/leave");
+        infoLabel.setForeground(Color.GRAY);
+        controlPanel.add(infoLabel);
+        
+        panel.add(controlPanel, BorderLayout.NORTH);
+        
+        // Client list area
+        clientListArea = new JTextArea();
+        clientListArea.setEditable(false);
+        clientListArea.setFont(new Font("Consolas", Font.PLAIN, 14));
+        clientListArea.setBackground(Color.WHITE);
+        clientListArea.setText("Connect to server to view connected clients...");
+        
+        JScrollPane scrollPane = new JScrollPane(clientListArea);
+        scrollPane.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Connected Clients", 
+            TitledBorder.LEFT, 
+            TitledBorder.TOP));
+        
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    private JPanel createHistoryPanel() {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        
+        // Controls panel
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        refreshHistoryButton = new JButton("🔄 Refresh");
+        refreshHistoryButton.addActionListener(e -> requestChatHistory());
+        controlPanel.add(refreshHistoryButton);
+        
+        JButton clearButton = new JButton("🗑️ Clear Display");
+        clearButton.addActionListener(e -> chatHistoryArea.setText(""));
+        controlPanel.add(clearButton);
+        
+        panel.add(controlPanel, BorderLayout.NORTH);
+        
+        // Chat history area
+        chatHistoryArea = new JTextArea();
+        chatHistoryArea.setEditable(false);
+        chatHistoryArea.setFont(new Font("Consolas", Font.PLAIN, 12));
+        chatHistoryArea.setBackground(Color.WHITE);
+        chatHistoryArea.setLineWrap(true);
+        chatHistoryArea.setWrapStyleWord(true);
+        chatHistoryArea.setText("Connect to server to view chat history...");
+        
+        JScrollPane scrollPane = new JScrollPane(chatHistoryArea);
+        scrollPane.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "Chat History (Last " + Constants.MAX_HISTORY_SIZE + " messages)", 
+            TitledBorder.LEFT, 
+            TitledBorder.TOP));
+        
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    private JPanel createStatsPanel() {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+        
+        // Controls panel
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        refreshStatsButton = new JButton("🔄 Refresh");
+        refreshStatsButton.addActionListener(e -> requestSystemStats());
+        controlPanel.add(refreshStatsButton);
+        
+        JLabel infoLabel = new JLabel("💡 Shows real-time server statistics");
+        infoLabel.setForeground(Color.GRAY);
+        controlPanel.add(infoLabel);
+        
+        panel.add(controlPanel, BorderLayout.NORTH);
+        
+        // Stats area
+        systemStatsArea = new JTextArea();
+        systemStatsArea.setEditable(false);
+        systemStatsArea.setFont(new Font("Consolas", Font.BOLD, 16));
+        systemStatsArea.setBackground(Color.WHITE);
+        systemStatsArea.setText("Connect to server to view statistics...");
+        
+        JScrollPane scrollPane = new JScrollPane(systemStatsArea);
+        scrollPane.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "System Statistics", 
+            TitledBorder.LEFT, 
+            TitledBorder.TOP));
+        
+        panel.add(scrollPane, BorderLayout.CENTER);
+        
+        return panel;
+    }
+    
+    private JPanel createActionsPanel() {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(new EmptyBorder(20, 20, 20, 20));
+        
+        JPanel contentPanel = new JPanel();
+        contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
+        contentPanel.setBackground(Color.WHITE);
+        
+        // Kick user section
+        JPanel kickPanel = new JPanel();
+        kickPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 10, 10));
+        kickPanel.setBackground(Color.WHITE);
+        kickPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.RED), 
+            "⚠️ Kick User", 
+            TitledBorder.LEFT, 
+            TitledBorder.TOP));
+        kickPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+        
+        JLabel kickLabel = new JLabel("Username:");
+        kickLabel.setFont(new Font("Arial", Font.BOLD, 14));
+        kickPanel.add(kickLabel);
+        
+        kickUserField = new JTextField(20);
+        kickUserField.setFont(new Font("Arial", Font.PLAIN, 14));
+        kickPanel.add(kickUserField);
+        
+        kickButton = new JButton("❌ Kick User");
+        kickButton.setBackground(new Color(231, 76, 60));
+        kickButton.setForeground(Color.WHITE);
+        kickButton.setFocusPainted(false);
+        kickButton.addActionListener(e -> kickUser());
+        kickPanel.add(kickButton);
+        
+        contentPanel.add(kickPanel);
+        contentPanel.add(Box.createVerticalStrut(20));
+        
+        // Instructions
+        JPanel instructionsPanel = new JPanel();
+        instructionsPanel.setLayout(new BoxLayout(instructionsPanel, BoxLayout.Y_AXIS));
+        instructionsPanel.setBackground(new Color(236, 240, 241));
+        instructionsPanel.setBorder(BorderFactory.createTitledBorder(
+            BorderFactory.createLineBorder(Color.GRAY), 
+            "ℹ️ Instructions", 
+            TitledBorder.LEFT, 
+            TitledBorder.TOP));
+        
+        String[] instructions = {
+            "• To kick a user, enter their exact username and click 'Kick User'",
+            "• Use the 'Connected Clients' tab to see all active users",
+            "• Chat history is limited to " + Constants.MAX_HISTORY_SIZE + " most recent messages",
+            "• All tabs auto-refresh when significant events occur",
+            "• System statistics show real-time server metrics"
+        };
+        
+        for (String instruction : instructions) {
+            JLabel label = new JLabel(instruction);
+            label.setFont(new Font("Arial", Font.PLAIN, 13));
+            label.setBorder(new EmptyBorder(5, 10, 5, 10));
+            instructionsPanel.add(label);
         }
+        
+        contentPanel.add(instructionsPanel);
+        
+        panel.add(contentPanel, BorderLayout.NORTH);
+        
+        return panel;
     }
     
-    /**
-     * Process admin commands
-     */
-    private void processCommand(String command) {
-        String[] parts = command.split("\\s+", 2);
-        String cmd = parts[0].toLowerCase();
+    private JPanel createStatusPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(new Color(52, 73, 94));
+        panel.setBorder(new EmptyBorder(10, 15, 10, 15));
         
-        switch (cmd) {
-            case "help":
-                displayHelp();
-                break;
-                
-            case "list":
-            case "users":
-                listUsers();
-                break;
-                
-            case "stats":
-            case "status":
-                showStatistics();
-                break;
-                
-            case "announce":
-            case "broadcast":
-                if (parts.length > 1) {
-                    sendAnnouncement(parts[1]);
-                } else {
-                    System.out.println("Usage: announce <message>");
-                }
-                break;
-                
-            case "kick":
-                if (parts.length > 1) {
-                    kickUser(parts[1]);
-                } else {
-                    System.out.println("Usage: kick <username>");
-                }
-                break;
-                
-            case "shutdown":
-            case "stop":
-            case "exit":
-                shutdownServer();
-                break;
-                
-            case "clear":
-            case "cls":
-                clearScreen();
-                break;
-                
-            case "logs":
-            case "chatlogs":
-                if (parts.length > 1) {
-                    try {
-                        int lines = Integer.parseInt(parts[1]);
-                        viewChatLogs(lines);
-                    } catch (NumberFormatException e) {
-                        System.out.println("Invalid number. Usage: logs <number>");
-                    }
-                } else {
-                    viewChatLogs(20); // Default 20 lines
-                }
-                break;
-                
-            case "serverlogs":
-                if (parts.length > 1) {
-                    try {
-                        int lines = Integer.parseInt(parts[1]);
-                        viewServerLogs(lines);
-                    } catch (NumberFormatException e) {
-                        System.out.println("Invalid number. Usage: serverlogs <number>");
-                    }
-                } else {
-                    viewServerLogs(20); // Default 20 lines
-                }
-                break;
-                
-            case "search":
-                if (parts.length > 1) {
-                    searchLogs(parts[1]);
-                } else {
-                    System.out.println("Usage: search <term>");
-                }
-                break;
-                
-            default:
-                System.out.println("Unknown command: " + cmd);
-                System.out.println("Type 'help' for available commands");
-                break;
-        }
+        statusLabel = new JLabel("⚪ Disconnected");
+        statusLabel.setFont(new Font("Arial", Font.BOLD, 12));
+        statusLabel.setForeground(Color.WHITE);
+        
+        panel.add(statusLabel, BorderLayout.WEST);
+        
+        return panel;
     }
     
-    /**
-     * Display help menu
-     */
-    private void displayHelp() {
-        System.out.println("\n╔══════════════════════════════════════════════════════╗");
-        System.out.println("║              Admin Console Commands                  ║");
-        System.out.println("╠══════════════════════════════════════════════════════╣");
-        System.out.println("║ help              - Show this help menu              ║");
-        System.out.println("║ list/users        - List all online users            ║");
-        System.out.println("║ stats/status      - Show server statistics           ║");
-        System.out.println("║ announce <msg>    - Send server announcement         ║");
-        System.out.println("║ kick <username>   - Kick a user from the server      ║");
-        System.out.println("║ logs [n]          - View recent chat logs (def: 20)  ║");
-        System.out.println("║ serverlogs [n]    - View server logs (default: 20)   ║");
-        System.out.println("║ search <term>     - Search in chat logs              ║");
-        System.out.println("║ clear/cls         - Clear the screen                 ║");
-        System.out.println("║ shutdown/exit     - Shutdown the server              ║");
-        System.out.println("╚══════════════════════════════════════════════════════╝\n");
-    }
-    
-    /**
-     * List all online users
-     */
-    private void listUsers() {
-        List<String> users = server.getOnlineUsers();
-        
-        System.out.println("\n╔══════════════════════════════════════════════════════╗");
-        System.out.println("║              Online Users (" + users.size() + "/" + 
-            Constants.MAX_CLIENTS + ")                    ║");
-        System.out.println("╠══════════════════════════════════════════════════════╣");
-        
-        if (users.isEmpty()) {
-            System.out.println("║ No users currently online                            ║");
-        } else {
-            for (int i = 0; i < users.size(); i++) {
-                String line = String.format("║ %2d. %-46s ║", i + 1, users.get(i));
-                System.out.println(line);
-            }
-        }
-        
-        System.out.println("╚══════════════════════════════════════════════════════╝\n");
-    }
-    
-    /**
-     * Show server statistics
-     */
-    private void showStatistics() {
-        long uptimeSeconds = java.time.Duration.between(startTime, LocalDateTime.now()).getSeconds();
-        String uptime = formatUptime(uptimeSeconds);
-        
-        System.out.println("\n╔══════════════════════════════════════════════════════╗");
-        System.out.println("║              Server Statistics                       ║");
-        System.out.println("╠══════════════════════════════════════════════════════╣");
-        System.out.println("║ Server Port       : " + String.format("%-32s", Constants.SERVER_PORT) + " ║");
-        System.out.println("║ Online Users      : " + String.format("%-32s", server.getClientCount()) + " ║");
-        System.out.println("║ Max Capacity      : " + String.format("%-32s", Constants.MAX_CLIENTS) + " ║");
-        System.out.println("║ Server Uptime     : " + String.format("%-32s", uptime) + " ║");
-        System.out.println("║ Start Time        : " + String.format("%-32s", 
-            startTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))) + " ║");
-        System.out.println("╚══════════════════════════════════════════════════════╝\n");
-    }
-    
-    /**
-     * Format uptime in readable format
-     */
-    private String formatUptime(long seconds) {
-        long days = seconds / 86400;
-        long hours = (seconds % 86400) / 3600;
-        long minutes = (seconds % 3600) / 60;
-        long secs = seconds % 60;
-        
-        if (days > 0) {
-            return String.format("%dd %dh %dm %ds", days, hours, minutes, secs);
-        } else if (hours > 0) {
-            return String.format("%dh %dm %ds", hours, minutes, secs);
-        } else if (minutes > 0) {
-            return String.format("%dm %ds", minutes, secs);
-        } else {
-            return String.format("%ds", secs);
-        }
-    }
-    
-    /**
-     * Send server announcement to all users
-     */
-    private void sendAnnouncement(String announcement) {
-        Message msg = new Message(MessageType.SERVER_ANNOUNCEMENT, 
-            Constants.SERVER_NAME, announcement);
-        server.broadcastMessage(msg);
-        
-        System.out.println("✓ Announcement sent to all users: " + announcement);
-    }
-    
-    /**
-     * Kick a user from the server
-     */
-    private void kickUser(String username) {
-        ClientHandler handler = server.getClientHandler(username);
-        
-        if (handler == null) {
-            System.out.println("✗ User '" + username + "' not found");
+    private void connectToServer() {
+        if (connected) {
+            disconnect();
             return;
         }
         
-        // Send kick notification to user
-        Message kickMsg = new Message(MessageType.SERVER_ANNOUNCEMENT, 
-            Constants.SERVER_NAME, "You have been kicked from the server by admin");
-        handler.sendMessage(kickMsg);
+        // Show login dialog
+        JPanel panel = new JPanel(new GridLayout(3, 2, 10, 10));
+        panel.add(new JLabel("Username:"));
+        JTextField usernameField = new JTextField(Constants.ADMIN_USERNAME);
+        panel.add(usernameField);
         
-        // Disconnect the user
-        handler.disconnect();
+        panel.add(new JLabel("Password:"));
+        JPasswordField passwordField = new JPasswordField(Constants.ADMIN_PASSWORD);
+        panel.add(passwordField);
         
-        System.out.println("✓ User '" + username + "' has been kicked from the server");
-    }
-    
-    /**
-     * Clear the console screen
-     */
-    private void clearScreen() {
-        try {
-            if (System.getProperty("os.name").toLowerCase().contains("windows")) {
-                new ProcessBuilder("cmd", "/c", "cls").inheritIO().start().waitFor();
-            } else {
-                System.out.print("\033[H\033[2J");
-                System.out.flush();
-            }
-        } catch (Exception e) {
-            // If clearing fails, just print newlines
-            for (int i = 0; i < 50; i++) {
-                System.out.println();
-            }
-        }
-    }
-    
-    /**
-     * Shutdown the server
-     */
-    private void shutdownServer() {
-        System.out.print("Are you sure you want to shutdown the server? (yes/no): ");
-        try {
-            String confirmation = reader.readLine();
-            if (confirmation != null && confirmation.equalsIgnoreCase("yes")) {
-                running = false;
-                server.shutdown();
-                System.exit(0);
-            } else {
-                System.out.println("Shutdown cancelled");
-            }
-        } catch (IOException e) {
-            System.err.println("Error reading confirmation: " + e.getMessage());
-        }
-    }
-    
-    /**
-     * View recent chat logs
-     */
-    private void viewChatLogs(int lines) {
-        ChatLogger logger = server.getChatLogger();
-        List<String> logs = logger.getRecentChatLogs(lines);
+        int result = JOptionPane.showConfirmDialog(this, panel, "Admin Login", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         
-        System.out.println("\n╔══════════════════════════════════════════════════════╗");
-        System.out.println("║         Recent Chat Logs (Last " + lines + " lines)          ║");
-        System.out.println("╠══════════════════════════════════════════════════════╣");
-        
-        if (logs.isEmpty()) {
-            System.out.println("║ No chat logs available                               ║");
-        } else {
-            for (String log : logs) {
-                // Truncate long lines to fit in the box
-                if (log.length() > 52) {
-                    log = log.substring(0, 49) + "...";
-                }
-                System.out.println(log);
-            }
-        }
-        
-        System.out.println("╚══════════════════════════════════════════════════════╝\n");
-    }
-    
-    /**
-     * View recent server logs
-     */
-    private void viewServerLogs(int lines) {
-        ChatLogger logger = server.getChatLogger();
-        List<String> logs = logger.getRecentServerLogs(lines);
-        
-        System.out.println("\n╔══════════════════════════════════════════════════════╗");
-        System.out.println("║       Recent Server Logs (Last " + lines + " lines)        ║");
-        System.out.println("╠══════════════════════════════════════════════════════╣");
-        
-        if (logs.isEmpty()) {
-            System.out.println("║ No server logs available                             ║");
-        } else {
-            for (String log : logs) {
-                // Truncate long lines to fit in the box
-                if (log.length() > 52) {
-                    log = log.substring(0, 49) + "...";
-                }
-                System.out.println(log);
-            }
-        }
-        
-        System.out.println("╚══════════════════════════════════════════════════════╝\n");
-    }
-    
-    /**
-     * Search logs for a specific term
-     */
-    private void searchLogs(String searchTerm) {
-        ChatLogger logger = server.getChatLogger();
-        List<String> results = logger.searchLogs(searchTerm, true);
-        
-        System.out.println("\n╔══════════════════════════════════════════════════════╗");
-        System.out.println("║         Search Results for: " + 
-            String.format("%-25s", searchTerm.substring(0, Math.min(25, searchTerm.length()))) + " ║");
-        System.out.println("╠══════════════════════════════════════════════════════╣");
-        
-        if (results.isEmpty()) {
-            System.out.println("║ No results found                                     ║");
-        } else {
-            System.out.println("║ Found " + results.size() + " matching entries:                        ║");
-            System.out.println("╠══════════════════════════════════════════════════════╣");
+        if (result == JOptionPane.OK_OPTION) {
+            String username = usernameField.getText();
+            String password = new String(passwordField.getPassword());
             
-            int count = 0;
-            for (String result : results) {
-                if (count >= 10) {
-                    System.out.println("║ ... (" + (results.size() - 10) + " more results)                             ║");
-                    break;
+            // Connect in background thread
+            new Thread(() -> {
+                try {
+                    socket = new Socket(Constants.SERVER_HOST, Constants.SERVER_PORT);
+                    output = new ObjectOutputStream(socket.getOutputStream());
+                    output.flush();
+                    input = new ObjectInputStream(socket.getInputStream());
+                    
+                    // Send admin login
+                    String credentials = username + ":" + password;
+                    Message loginMsg = new Message(MessageType.ADMIN_LOGIN, "ADMIN", credentials);
+                    output.writeObject(loginMsg);
+                    output.flush();
+                    
+                    // Wait for response
+                    Message response = (Message) input.readObject();
+                    
+                    if (MessageType.ADMIN_AUTH_SUCCESS.equals(response.getType())) {
+                        connected = true;
+                        SwingUtilities.invokeLater(() -> {
+                            updateStatus("🟢 Connected to " + Constants.SERVER_HOST + ":" + Constants.SERVER_PORT, true);
+                            connectButton.setText("Disconnect");
+                            connectButton.setBackground(new Color(231, 76, 60));
+                            setControlsEnabled(true);
+                            JOptionPane.showMessageDialog(this, "Successfully connected as Admin!", 
+                                "Success", JOptionPane.INFORMATION_MESSAGE);
+                        });
+                        
+                        // Start listening for server messages
+                        listenForServerMessages();
+                        
+                    } else {
+                        SwingUtilities.invokeLater(() -> {
+                            JOptionPane.showMessageDialog(this, "Invalid admin credentials!", 
+                                "Authentication Failed", JOptionPane.ERROR_MESSAGE);
+                        });
+                        disconnect();
+                    }
+                    
+                } catch (Exception e) {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(this, 
+                            "Failed to connect to server:\n" + e.getMessage(), 
+                            "Connection Error", JOptionPane.ERROR_MESSAGE);
+                        updateStatus("⚪ Disconnected", false);
+                    });
                 }
-                // Truncate long lines to fit in the box
-                if (result.length() > 52) {
-                    result = result.substring(0, 49) + "...";
+            }).start();
+        }
+    }
+    
+    private void listenForServerMessages() {
+        new Thread(() -> {
+            try {
+                while (connected) {
+                    Message message = (Message) input.readObject();
+                    handleServerMessage(message);
                 }
-                System.out.println(result);
-                count++;
+            } catch (Exception e) {
+                if (connected) {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(this, 
+                            "Connection lost: " + e.getMessage(), 
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                        disconnect();
+                    });
+                }
             }
+        }).start();
+    }
+    
+    private void handleServerMessage(Message message) {
+        SwingUtilities.invokeLater(() -> {
+            switch (message.getType()) {
+                case MessageType.CONNECTED_CLIENTS_LIST:
+                    clientListArea.setText("=== Connected Clients ===\n" + message.getContent() + 
+                        "\n=========================");
+                    break;
+                    
+                case MessageType.CHAT_HISTORY_DATA:
+                    chatHistoryArea.setText("=== Chat History ===\n" + message.getContent() + 
+                        "\n====================");
+                    break;
+                    
+                case MessageType.SYSTEM_STATS_DATA:
+                    systemStatsArea.setText(message.getContent());
+                    break;
+                    
+                case MessageType.KICK_SUCCESS:
+                case MessageType.KICK_FAILED:
+                    JOptionPane.showMessageDialog(this, message.getContent(), 
+                        "Kick User", JOptionPane.INFORMATION_MESSAGE);
+                    kickUserField.setText("");
+                    requestConnectedClients();
+                    break;
+            }
+        });
+    }
+    
+    private void requestConnectedClients() {
+        if (!connected) return;
+        
+        try {
+            Message request = new Message(MessageType.GET_CONNECTED_CLIENTS, "ADMIN", "");
+            output.writeObject(request);
+            output.flush();
+        } catch (IOException e) {
+            showError("Failed to request client list: " + e.getMessage());
+        }
+    }
+    
+    private void requestChatHistory() {
+        if (!connected) return;
+        
+        try {
+            Message request = new Message(MessageType.GET_CHAT_HISTORY, "ADMIN", "");
+            output.writeObject(request);
+            output.flush();
+        } catch (IOException e) {
+            showError("Failed to request chat history: " + e.getMessage());
+        }
+    }
+    
+    private void requestSystemStats() {
+        if (!connected) return;
+        
+        try {
+            Message request = new Message(MessageType.GET_SYSTEM_STATS, "ADMIN", "");
+            output.writeObject(request);
+            output.flush();
+        } catch (IOException e) {
+            showError("Failed to request system stats: " + e.getMessage());
+        }
+    }
+    
+    private void kickUser() {
+        if (!connected) return;
+        
+        String username = kickUserField.getText().trim();
+        
+        if (username.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please enter a username to kick", 
+                "Input Required", JOptionPane.WARNING_MESSAGE);
+            return;
         }
         
-        System.out.println("╚══════════════════════════════════════════════════════╝\n");
+        int confirm = JOptionPane.showConfirmDialog(this, 
+            "Are you sure you want to kick user '" + username + "'?", 
+            "Confirm Kick", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            try {
+                Message kickMsg = new Message(MessageType.KICK_USER, "ADMIN", username);
+                output.writeObject(kickMsg);
+                output.flush();
+            } catch (IOException e) {
+                showError("Failed to kick user: " + e.getMessage());
+            }
+        }
+    }
+    
+    private void disconnect() {
+        try {
+            connected = false;
+            
+            if (output != null) {
+                try {
+                    Message logoutMsg = new Message(MessageType.LOGOUT, "ADMIN", "");
+                    output.writeObject(logoutMsg);
+                    output.flush();
+                } catch (IOException e) {
+                    // Ignore
+                }
+            }
+            
+            if (input != null) input.close();
+            if (output != null) output.close();
+            if (socket != null && !socket.isClosed()) socket.close();
+            
+            SwingUtilities.invokeLater(() -> {
+                updateStatus("⚪ Disconnected", false);
+                connectButton.setText("Connect to Server");
+                connectButton.setBackground(new Color(46, 204, 113));
+                setControlsEnabled(false);
+                
+                clientListArea.setText("Connect to server to view connected clients...");
+                chatHistoryArea.setText("Connect to server to view chat history...");
+                systemStatsArea.setText("Connect to server to view statistics...");
+            });
+            
+        } catch (IOException e) {
+            showError("Error during disconnect: " + e.getMessage());
+        }
+    }
+    
+    private void setControlsEnabled(boolean enabled) {
+        refreshClientsButton.setEnabled(enabled);
+        refreshHistoryButton.setEnabled(enabled);
+        refreshStatsButton.setEnabled(enabled);
+        kickButton.setEnabled(enabled);
+        kickUserField.setEnabled(enabled);
+    }
+    
+    private void updateStatus(String status, boolean connected) {
+        statusLabel.setText(status);
+        if (connected) {
+            statusLabel.setForeground(new Color(46, 204, 113));
+        } else {
+            statusLabel.setForeground(Color.WHITE);
+        }
+    }
+    
+    private void showError(String message) {
+        SwingUtilities.invokeLater(() -> {
+            JOptionPane.showMessageDialog(this, message, "Error", JOptionPane.ERROR_MESSAGE);
+        });
+    }
+    
+    public static void main(String[] args) {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        SwingUtilities.invokeLater(() -> {
+            AdminConsole console = new AdminConsole();
+            console.setVisible(true);
+        });
     }
 }

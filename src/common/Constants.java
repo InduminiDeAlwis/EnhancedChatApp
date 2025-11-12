@@ -19,6 +19,7 @@ public class Constants {
     public static final int BUFFER_SIZE = 8192; // General buffer size
     public static final int MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB max file size
     public static final String FILE_TRANSFER_DIRECTORY = "received_files/";
+    public static final String FILE_TRANSFER_DIR = "transferred_files/";
     public static final String FILES_DIR = "uploaded_files";
     public static final int FILE_TRANSFER_TIMEOUT = 30000; // 30 seconds
 
@@ -34,11 +35,13 @@ public class Constants {
     // ============ CHAT CONFIGURATION ============
     public static final String CHAT_HISTORY_FILE = "logs/chat_history.txt";
     public static final int MAX_CHAT_HISTORY_LINES = 10000;
+    public static final int MAX_HISTORY_SIZE = 100;
 
     // ============ UI CONFIGURATION ============
     public static final int UI_WIDTH = 800;
     public static final int UI_HEIGHT = 600;
     public static final String APP_TITLE = "Enhanced Chat Application";
+    public static final String ADMIN_TITLE = "Admin Console";
 
     // ============ USER MANAGEMENT ============
     public static final int MAX_USERNAME_LENGTH = 20;
@@ -46,6 +49,10 @@ public class Constants {
     public static final String WELCOME_MESSAGE = "Welcome to Enhanced Chat System!";
     public static final String DISCONNECT_MESSAGE = "has left the chat";
     public static final String CONNECT_MESSAGE = "has joined the chat";
+
+    // ============ ADMIN CREDENTIALS ============
+    public static final String ADMIN_USERNAME = "admin";
+    public static final String ADMIN_PASSWORD = "admin123";
 
     // ============ COMMANDS ============
     public static final String EXIT_COMMAND = "/exit";
