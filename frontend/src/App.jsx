@@ -5,10 +5,34 @@ const UPLOAD_URL = `http://${window.location.hostname}:9000/upload`;
 
 function MessageBubble({ m, me }) {
   const cls = m.sender === '[system]' ? 'msg-system' : (me ? 'msg-me' : 'msg-they');
+
+  // Check if message contains a file link
+  const fileUrlMatch = m.content.match(/http:\/\/[^\s]+\/files\/[^\s]+/);
+  const hasFileLink = fileUrlMatch !== null;
+
+  // Extract filename from message (format: "📎 filename — url")
+  const filenameMatch = m.content.match(/📎\s+([^\s—]+)/);
+  const filename = filenameMatch ? filenameMatch[1] : 'Download File';
+
   return (
     <div className={`msg ${cls}`}>
       <div className="msg-sender">{m.sender}</div>
-      <div className="msg-content">{m.content}</div>
+      {hasFileLink ? (
+        <div className="msg-content">
+          <div>📎 Shared a file: <strong>{filename}</strong></div>
+          <a
+            href={fileUrlMatch[0]}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="file-link"
+            download
+          >
+            🔗 Click to open/download
+          </a>
+        </div>
+      ) : (
+        <div className="msg-content">{m.content}</div>
+      )}
     </div>
   )
 }
@@ -83,7 +107,7 @@ export default function App() {
           <div className="login">
             {!connected ? (
               <>
-                <input className="input-username" placeholder="Your name" value={username} onChange={e=>setUsername(e.target.value)} />
+                <input className="input-username" placeholder="Your name" value={username} onChange={e => setUsername(e.target.value)} />
                 <button className="btn" onClick={connect} disabled={!username}>Connect</button>
               </>
             ) : (
@@ -102,13 +126,13 @@ export default function App() {
 
         <main className="chat">
           <div className="msg-list" ref={listRef}>
-            {messages.map((m,i) => (
+            {messages.map((m, i) => (
               <MessageBubble key={i} m={m} me={m.sender === username} />
             ))}
           </div>
 
           <form className="composer" onSubmit={submitMessage}>
-            <input className="txt" placeholder="Type a message" value={text} onChange={e=>setText(e.target.value)} />
+            <input className="txt" placeholder="Type a message" value={text} onChange={e => setText(e.target.value)} />
             <label className="file-btn">📎
               <input type="file" onChange={uploadFile} />
             </label>

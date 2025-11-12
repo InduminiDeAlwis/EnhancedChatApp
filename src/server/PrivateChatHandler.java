@@ -185,8 +185,8 @@ public class PrivateChatHandler {
                 filename + " (" + formatFileSize(fileSize) + ")",
                 "METADATA_SENT");
 
-        System.out.println("File metadata forwarded: " + filename + 
-                " (" + formatFileSize(fileSize) + ") from " + 
+        System.out.println("File metadata forwarded: " + filename +
+                " (" + formatFileSize(fileSize) + ") from " +
                 message.getSender() + " to " + message.getReceiver());
     }
 
