@@ -4,291 +4,274 @@ import common.Constants;
 import common.Message;
 import common.MessageType;
 
-import java.io.*;
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Server.java
- * Main server class that handles multiple client connections
- * Uses multi-threading to handle each client simultaneously
+ * Main server class for the Enhanced Multi-Client Chat and File Transfer System
  */
 public class Server {
-
+    private static Server instance;
     private ServerSocket serverSocket;
+    private final Map<String, ClientHandler> clientHandlers;
+    private final List<String> onlineUsers;
     private boolean running;
+    @SuppressWarnings("unused")
+    private int clientCounter;
+    private ChatLogger chatLogger;
 
-    // Thread-safe collections to manage clients
-    // ConcurrentHashMap allows multiple threads to access safely
-    private ConcurrentHashMap<String, ClientHandler> clients;  // username -> ClientHandler
-    private List<ClientHandler> clientHandlers;                // List of all handlers
-
-    /**
-     * Constructor - Initialize the server
-     */
     public Server() {
-        this.clients = new ConcurrentHashMap<>();
-        this.clientHandlers = new ArrayList<>();
+        this.clientHandlers = new ConcurrentHashMap<>();
+        this.onlineUsers = new ArrayList<>();
         this.running = false;
+        this.clientCounter = 0;
+        this.chatLogger = new ChatLogger();
+    }
+
+    public static Server getInstance() {
+        if (instance == null) {
+            instance = new Server();
+        }
+        return instance;
     }
 
     /**
-     * Start the server and listen for connections
+     * Start the server and begin accepting client connections
      */
-    public void start() {
+    public void startServer() {
         try {
-            // Create server socket on specified port
             serverSocket = new ServerSocket(Constants.SERVER_PORT);
             running = true;
 
-            System.out.println("TPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPW");
-            System.out.println("Q   Enhanced Chat Server Started Successfully  Q");
-            System.out.println("ZPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP]");
+            System.out.println("╔══════════════════════════════════════════════════════╗");
+            System.out.println("║   Enhanced Chat Server Started Successfully          ║");
+            System.out.println("╚══════════════════════════════════════════════════════╝");
             System.out.println("Server listening on port: " + Constants.SERVER_PORT);
-            System.out.println("Maximum clients: " + Constants.MAX_CLIENTS);
             System.out.println("Waiting for client connections...\n");
 
-            // Main server loop - accept client connections
-            while (running) {
-                try {
-                    // Wait for a client to connect (blocking call)
-                    Socket clientSocket = serverSocket.accept();
+            // Start admin console in separate thread
+            Thread adminThread = new Thread(new AdminConsole(this));
+            adminThread.setDaemon(true);
+            adminThread.start();
 
-                    // Check if server is full
-                    if (clientHandlers.size() >= Constants.MAX_CLIENTS) {
-                        System.out.println("Server full. Rejecting connection from: " +
-                                         clientSocket.getInetAddress().getHostAddress());
+            // Accept client connections
+            acceptClients();
 
-                        // Send rejection message and close
-                        PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
-                        out.println(new Message(MessageType.ERROR, Constants.SYSTEM_SENDER,
-                                              "Server is full. Try again later.").toProtocol());
-                        clientSocket.close();
-                        continue;
-                    }
+        } catch (IOException e) {
+            System.err.println("Error starting server: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
 
-                    // Create a new thread to handle this client
-                    ClientHandler clientHandler = new ClientHandler(clientSocket, this);
-                    clientHandlers.add(clientHandler);
+    /**
+     * Accept incoming client connections
+     */
+    private void acceptClients() {
+        while (running) {
+            try {
+                Socket clientSocket = serverSocket.accept();
+                clientCounter++;
 
-                    // Start the client handler thread
-                    new Thread(clientHandler).start();
+                if (clientHandlers.size() >= Constants.MAX_CLIENTS) {
+                    System.out.println("Server full. Rejecting connection from: " +
+                            clientSocket.getInetAddress().getHostAddress());
+                    clientSocket.close();
+                    continue;
+                }
 
-                    System.out.println("New connection from: " +
-                                     clientSocket.getInetAddress().getHostAddress());
-                    System.out.println("Active connections: " + clientHandlers.size() + "\n");
+                System.out.println("New connection from: " +
+                        clientSocket.getInetAddress().getHostAddress());
 
-                } catch (IOException e) {
-                    if (running) {
-                        System.err.println("Error accepting client connection: " + e.getMessage());
-                    }
+                // Create and start client handler thread
+                ClientHandler clientHandler = new ClientHandler(clientSocket, this);
+                Thread clientThread = new Thread(clientHandler);
+                clientThread.start();
+
+            } catch (IOException e) {
+                if (running) {
+                    System.err.println("Error accepting client connection: " + e.getMessage());
                 }
             }
-
-        } catch (IOException e) {
-            System.err.println("Could not start server: " + e.getMessage());
-            e.printStackTrace();
-        } finally {
-            stop();
         }
     }
 
     /**
-     * Stop the server and disconnect all clients
-     */
-    public void stop() {
-        try {
-            running = false;
-
-            System.out.println("\nShutting down server...");
-
-            // Disconnect all clients
-            for (ClientHandler handler : clientHandlers) {
-                handler.disconnect();
-            }
-
-            // Close server socket
-            if (serverSocket != null && !serverSocket.isClosed()) {
-                serverSocket.close();
-            }
-
-            System.out.println("Server stopped successfully.");
-
-        } catch (IOException e) {
-            System.err.println("Error stopping server: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Register a client with their username
-     * Called by ClientHandler after successful login
+     * Register a client with the server
      */
     public synchronized boolean registerClient(String username, ClientHandler handler) {
-        // Check if username is already taken
-        if (clients.containsKey(username)) {
-            return false;
+        if (clientHandlers.containsKey(username)) {
+            return false; // Username already taken
         }
 
-        // Register the client
-        clients.put(username, handler);
-        System.out.println(" User registered: " + username + " (Total users: " + clients.size() + ")");
+        clientHandlers.put(username, handler);
+        onlineUsers.add(username);
 
-        // Notify all clients that new user joined
-        broadcastMessage(Message.systemMessage(username + " joined the chat"));
+        System.out.println("✓ User '" + username + "' registered successfully. Total users: " +
+                clientHandlers.size());
 
-        // Send welcome message to the new user
-        handler.sendMessage(Message.systemMessage(Constants.WELCOME_MESSAGE));
+        // Log user connection
+        chatLogger.logUserConnected(username);
 
-        // Send list of online users to the new client
-        sendUserList(handler);
+        // Notify all clients about the new user
+        broadcastMessage(new Message(MessageType.USER_JOINED, Constants.SERVER_NAME,
+                username + " " + Constants.CONNECT_MESSAGE));
+
+        // Send updated user list to all clients
+        broadcastUserList();
 
         return true;
     }
 
     /**
-     * Unregister a client (when they disconnect)
+     * Remove a client from the server
      */
-    public synchronized void unregisterClient(String username, ClientHandler handler) {
-        clients.remove(username);
-        clientHandlers.remove(handler);
-
-        System.out.println(" User disconnected: " + username + " (Total users: " + clients.size() + ")");
-
-        // Notify all clients that user left
-        if (username != null) {
-            broadcastMessage(Message.systemMessage(username + " left the chat"));
+    public synchronized void removeClient(String username) {
+        if (username == null || !clientHandlers.containsKey(username)) {
+            return;
         }
+
+        clientHandlers.remove(username);
+        onlineUsers.remove(username);
+
+        System.out.println("✗ User '" + username + "' disconnected. Total users: " +
+                clientHandlers.size());
+
+        // Log user disconnection
+        chatLogger.logUserDisconnected(username);
+
+        // Notify all clients about the user leaving
+        broadcastMessage(new Message(MessageType.USER_LEFT, Constants.SERVER_NAME,
+                username + " " + Constants.DISCONNECT_MESSAGE));
+
+        // Send updated user list to all clients
+        broadcastUserList();
     }
 
     /**
-     * Broadcast message to all connected clients
-     * Used for group chat messages and system notifications
+     * Broadcast a message to all connected clients
      */
     public void broadcastMessage(Message message) {
-        System.out.println("Broadcasting: " + message.toDisplayFormat());
+        // Log the message if it's a chat message
+        if (message.getType() == MessageType.PUBLIC_MESSAGE) {
+            chatLogger.logChatMessage(message);
+        }
 
-        // Log the message
-        logMessage(message);
-
-        // Send to all clients
-        for (ClientHandler handler : clientHandlers) {
+        for (ClientHandler handler : clientHandlers.values()) {
             handler.sendMessage(message);
         }
     }
 
     /**
-     * Send private message to specific user
-     * This is the core of your private chat feature!
+     * Send a message to a specific client
      */
-    public void sendPrivateMessage(Message message) {
-        String recipient = message.getRecipient();
-        String sender = message.getSender();
+    public boolean sendPrivateMessage(Message message) {
+        String receiver = message.getReceiver();
+        ClientHandler handler = clientHandlers.get(receiver);
 
-        System.out.println("Private message: " + sender + " -> " + recipient);
-
-        // Log the private message
-        logMessage(message);
-
-        // Find recipient's handler
-        ClientHandler recipientHandler = clients.get(recipient);
-
-        if (recipientHandler != null) {
-            // Send to recipient
-            recipientHandler.sendMessage(message);
-
-            // Also send confirmation to sender (so they see their own message)
-            ClientHandler senderHandler = clients.get(sender);
-            if (senderHandler != null) {
-                senderHandler.sendMessage(message);
+        if (handler != null) {
+            // Log private message
+            if (message.getType() == MessageType.PRIVATE_MESSAGE) {
+                chatLogger.logChatMessage(message);
             }
-        } else {
-            // Recipient not found - send error to sender
-            ClientHandler senderHandler = clients.get(sender);
-            if (senderHandler != null) {
-                Message errorMsg = new Message(MessageType.ERROR,
-                                              Constants.SYSTEM_SENDER,
-                                              sender,
-                                              "User '" + recipient + "' is not online.");
-                senderHandler.sendMessage(errorMsg);
-            }
+            handler.sendMessage(message);
+            return true;
         }
+        return false;
     }
 
     /**
-     * Send list of online users to a specific client
+     * Broadcast the current user list to all clients
      */
-    public void sendUserList(ClientHandler handler) {
-        StringBuilder userList = new StringBuilder("Online users: ");
-        for (String username : clients.keySet()) {
-            userList.append(username).append(", ");
-        }
-
-        // Remove trailing comma
-        if (userList.length() > 14) {
-            userList.setLength(userList.length() - 2);
-        }
-
-        Message userListMsg = new Message(MessageType.USER_LIST,
-                                         Constants.SYSTEM_SENDER,
-                                         userList.toString());
-        handler.sendMessage(userListMsg);
+    public void broadcastUserList() {
+        Message userListMessage = new Message(MessageType.USER_LIST,
+                Constants.SERVER_NAME, String.join(",", onlineUsers));
+        broadcastMessage(userListMessage);
     }
 
     /**
-     * Get list of all online usernames
-     * Used by clients to show who's available for private chat
+     * Get the list of online users
      */
-    public List<String> getOnlineUsers() {
-        return new ArrayList<>(clients.keySet());
+    public synchronized List<String> getOnlineUsers() {
+        return new ArrayList<>(onlineUsers);
     }
 
     /**
-     * Log message to file for chat history
+     * Get a specific client handler
      */
-    private void logMessage(Message message) {
-        if (!Constants.ENABLE_LOGGING) {
-            return;
+    public ClientHandler getClientHandler(String username) {
+        return clientHandlers.get(username);
+    }
+
+    /**
+     * Get the number of connected clients
+     */
+    public int getClientCount() {
+        return clientHandlers.size();
+    }
+
+    /**
+     * Check if username is available
+     */
+    public boolean isUsernameAvailable(String username) {
+        return !clientHandlers.containsKey(username);
+    }
+
+    /**
+     * Get the chat logger instance
+     */
+    public ChatLogger getChatLogger() {
+        return chatLogger;
+    }
+
+    /**
+     * Shutdown the server gracefully
+     */
+    public void shutdown() {
+        System.out.println("\nShutting down server...");
+        running = false;
+
+        // Notify all clients
+        broadcastMessage(new Message(MessageType.SERVER_ANNOUNCEMENT,
+                Constants.SERVER_NAME, "Server is shutting down. Goodbye!"));
+
+        // Close all client connections
+        for (ClientHandler handler : clientHandlers.values()) {
+            handler.disconnect();
         }
 
+        // Close server socket
         try {
-            File logFile = new File(Constants.CHAT_HISTORY_FILE);
-
-            // Create parent directories if they don't exist
-            logFile.getParentFile().mkdirs();
-
-            // Append to log file
-            try (FileWriter fw = new FileWriter(logFile, true);
-                 BufferedWriter bw = new BufferedWriter(fw);
-                 PrintWriter out = new PrintWriter(bw)) {
-
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-                String timestamp = LocalDateTime.now().format(formatter);
-
-                out.println("[" + timestamp + "] " + message.toDisplayFormat());
+            if (serverSocket != null && !serverSocket.isClosed()) {
+                serverSocket.close();
             }
         } catch (IOException e) {
-            System.err.println("Error logging message: " + e.getMessage());
+            System.err.println("Error closing server socket: " + e.getMessage());
         }
+
+        // Close chat logger
+        if (chatLogger != null) {
+            chatLogger.close();
+        }
+
+        System.out.println("Server shutdown complete.");
     }
 
     /**
-     * Main method - Entry point for server application
+     * Main method to start the server
      */
     public static void main(String[] args) {
-        Server server = new Server();
+        Server server = Server.getInstance();
 
-        // Add shutdown hook to gracefully stop server on Ctrl+C
+        // Add shutdown hook for graceful shutdown
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            System.out.println("\nShutdown signal received...");
-            server.stop();
+            server.shutdown();
         }));
 
-        // Start the server
-        server.start();
+        server.startServer();
     }
 }

@@ -4,241 +4,293 @@ import common.Constants;
 import common.Message;
 import common.MessageType;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.net.Socket;
+import java.net.SocketException;
 
 /**
- * ClientHandler.java
- * Handles communication with a single client in a separate thread
- * Each connected client gets their own ClientHandler instance
+ * Handles communication with a single client
  */
 public class ClientHandler implements Runnable {
-
-    private Socket socket;
-    private Server server;
+    private final Socket socket;
+    private final Server server;
+    private ObjectOutputStream output;
+    private ObjectInputStream input;
     private String username;
+    private boolean running;
 
-    // I/O streams for communication
-    private BufferedReader in;
-    private PrintWriter out;
-
-    private boolean connected;
-
-    /**
-     * Constructor
-     */
     public ClientHandler(Socket socket, Server server) {
         this.socket = socket;
         this.server = server;
-        this.connected = true;
+        this.running = true;
     }
 
-    /**
-     * Main thread execution method
-     * This runs in a separate thread for each client
-     */
     @Override
     public void run() {
         try {
-            // Set up I/O streams
-            setupStreams();
+            // Initialize streams
+            output = new ObjectOutputStream(socket.getOutputStream());
+            output.flush();
+            input = new ObjectInputStream(socket.getInputStream());
 
-            // Authenticate user (get username)
-            if (!authenticate()) {
+            // Authenticate user
+            if (!authenticateUser()) {
                 disconnect();
                 return;
             }
 
-            // Main message receiving loop
-            listenForMessages();
+            // Send welcome message
+            sendMessage(new Message(MessageType.SUCCESS, Constants.SERVER_NAME,
+                    Constants.WELCOME_MESSAGE));
 
+            // Main message handling loop
+            while (running) {
+                try {
+                    Message message = (Message) input.readObject();
+                    if (message != null) {
+                        handleMessage(message);
+                    }
+                } catch (ClassNotFoundException e) {
+                    System.err.println("Invalid message format from " + username);
+                }
+            }
+
+        } catch (SocketException e) {
+            System.out.println("Connection lost with " + username);
         } catch (IOException e) {
-            System.err.println("Error in ClientHandler for " + username + ": " + e.getMessage());
+            if (running) {
+                System.err.println("Error in ClientHandler for " + username + ": " +
+                        e.getMessage());
+            }
         } finally {
             disconnect();
         }
     }
 
     /**
-     * Set up input/output streams for socket communication
+     * Authenticate the user during login
      */
-    private void setupStreams() throws IOException {
-        // Input stream - read messages from client
-        in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+    private boolean authenticateUser() throws IOException {
+        try {
+            Message loginMessage = (Message) input.readObject();
 
-        // Output stream - send messages to client
-        out = new PrintWriter(socket.getOutputStream(), true);
-
-        System.out.println("Streams established for client: " + socket.getInetAddress());
-    }
-
-    /**
-     * Authenticate user - get and validate username
-     */
-    private boolean authenticate() throws IOException {
-        // Ask for username
-        sendMessage(Message.systemMessage("Enter your username:"));
-
-        // Read username from client
-        String receivedUsername = in.readLine();
-
-        if (receivedUsername == null || receivedUsername.trim().isEmpty()) {
-            sendMessage(Message.systemMessage("Invalid username. Disconnecting."));
-            return false;
-        }
-
-        receivedUsername = receivedUsername.trim();
-
-        // Check if username is valid (alphanumeric, 3-20 chars)
-        if (!isValidUsername(receivedUsername)) {
-            sendMessage(new Message(MessageType.ERROR,
-                                   Constants.SYSTEM_SENDER,
-                                   "Username must be 3-20 alphanumeric characters."));
-            return false;
-        }
-
-        // Try to register with server
-        if (server.registerClient(receivedUsername, this)) {
-            this.username = receivedUsername;
-            System.out.println(" Client authenticated as: " + username);
-            return true;
-        } else {
-            sendMessage(new Message(MessageType.ERROR,
-                                   Constants.SYSTEM_SENDER,
-                                   "Username '" + receivedUsername + "' is already taken."));
-            return false;
-        }
-    }
-
-    /**
-     * Validate username format
-     */
-    private boolean isValidUsername(String username) {
-        return username != null &&
-               username.length() >= 3 &&
-               username.length() <= 20 &&
-               username.matches("[a-zA-Z0-9_]+");
-    }
-
-    /**
-     * Listen for incoming messages from client
-     * This runs continuously until client disconnects
-     */
-    private void listenForMessages() throws IOException {
-        String receivedData;
-
-        while (connected && (receivedData = in.readLine()) != null) {
-            try {
-                // Parse received message
-                Message message = Message.fromProtocol(receivedData);
-
-                if (message == null) {
-                    System.err.println("Invalid message format from " + username);
-                    continue;
-                }
-
-                // Set sender to this client's username (security measure)
-                message.setSender(username);
-
-                // Handle different message types
-                handleMessage(message);
-
-            } catch (Exception e) {
-                System.err.println("Error processing message from " + username + ": " + e.getMessage());
+            if (loginMessage.getType() != MessageType.LOGIN) {
+                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME,
+                        "Invalid login request"));
+                return false;
             }
+
+            String requestedUsername = loginMessage.getSender();
+
+            // Validate username
+            if (requestedUsername == null || requestedUsername.trim().isEmpty()) {
+                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME,
+                        "Username cannot be empty"));
+                return false;
+            }
+
+            if (requestedUsername.length() > Constants.MAX_USERNAME_LENGTH) {
+                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME,
+                        "Username too long (max " + Constants.MAX_USERNAME_LENGTH + " characters)"));
+                return false;
+            }
+
+            // Check if username is available
+            if (!server.isUsernameAvailable(requestedUsername)) {
+                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME,
+                        "Username already taken"));
+                return false;
+            }
+
+            // Register client with server
+            this.username = requestedUsername;
+            if (server.registerClient(username, this)) {
+                sendMessage(new Message(MessageType.LOGIN_SUCCESS, Constants.SERVER_NAME,
+                        "Login successful. Welcome " + username + "!"));
+                return true;
+            } else {
+                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME,
+                        "Failed to register user"));
+                return false;
+            }
+
+        } catch (ClassNotFoundException e) {
+            sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME,
+                    "Invalid login message format"));
+            return false;
         }
     }
 
     /**
-     * Handle different types of messages
+     * Handle incoming messages from the client
      */
     private void handleMessage(Message message) {
-        System.out.println("Received from " + username + ": " + message.getType() + " - " + message.getContent());
+        if (message == null)
+            return;
+
+        System.out.println("Message from " + username + ": " + message.getType());
 
         switch (message.getType()) {
-            case BROADCAST:
-                // Regular group chat message - broadcast to everyone
-                server.broadcastMessage(message);
+            case PUBLIC_MESSAGE:
+                handlePublicMessage(message);
                 break;
 
-            case PRIVATE:
-                // Private message - send only to specific recipient
-                // This is your feature!
-                server.sendPrivateMessage(message);
+            case PRIVATE_MESSAGE:
+                handlePrivateMessage(message);
                 break;
 
-            case USER_LIST:
-                // Client requesting list of online users
-                server.sendUserList(this);
+            case FILE_TRANSFER_REQUEST:
+            case FILE_TRANSFER_ACCEPT:
+            case FILE_TRANSFER_REJECT:
+            case FILE_METADATA:
+            case FILE_COMPLETE:
+            case FILE_ERROR:
+            case FILE_PROGRESS:
+                handleFileTransfer(message);
                 break;
 
-            case LEAVE:
-                // Client wants to disconnect
-                disconnect();
+            case LOGOUT:
+                handleLogout();
+                break;
+
+            case PING:
+                sendMessage(new Message(MessageType.PONG, Constants.SERVER_NAME, "pong"));
                 break;
 
             default:
-                System.err.println("Unknown message type from " + username + ": " + message.getType());
+                System.out.println("Unhandled message type: " + message.getType());
                 break;
         }
     }
 
     /**
-     * Send message to this client
+     * Handle public messages
      */
-    public void sendMessage(Message message) {
-        if (out != null && connected) {
-            out.println(message.toProtocol());
+    private void handlePublicMessage(Message message) {
+        // Validate message
+        if (message.getContent() == null || message.getContent().trim().isEmpty()) {
+            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME,
+                    "Message cannot be empty"));
+            return;
+        }
+
+        if (message.getContent().length() > Constants.MAX_MESSAGE_LENGTH) {
+            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME,
+                    "Message too long (max " + Constants.MAX_MESSAGE_LENGTH + " characters)"));
+            return;
+        }
+
+        // Set sender to authenticated username
+        message.setSender(username);
+
+        // Broadcast to all clients
+        server.broadcastMessage(message);
+    }
+
+    /**
+     * Handle private messages
+     */
+    private void handlePrivateMessage(Message message) {
+        String receiver = message.getReceiver();
+
+        if (receiver == null || receiver.trim().isEmpty()) {
+            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME,
+                    "Receiver not specified"));
+            return;
+        }
+
+        // Validate message content
+        if (message.getContent() == null || message.getContent().trim().isEmpty()) {
+            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME,
+                    "Message cannot be empty"));
+            return;
+        }
+
+        // Set sender to authenticated username
+        message.setSender(username);
+
+        // Use PrivateChatHandler to route the message
+        PrivateChatHandler privateChatHandler = new PrivateChatHandler(server);
+        if (!privateChatHandler.routePrivateMessage(message)) {
+            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME,
+                    "Failed to send private message. User may be offline."));
         }
     }
 
     /**
-     * Disconnect this client
+     * Handle file transfer messages
+     */
+    private void handleFileTransfer(Message message) {
+        PrivateChatHandler privateChatHandler = new PrivateChatHandler(server);
+        privateChatHandler.handleFileTransfer(message);
+    }
+
+    /**
+     * Handle logout request
+     */
+    private void handleLogout() {
+        System.out.println("User " + username + " requested logout");
+        disconnect();
+    }
+
+    /**
+     * Send a message to this client
+     */
+    public synchronized void sendMessage(Message message) {
+        try {
+            if (output != null && socket.isConnected() && !socket.isClosed()) {
+                output.writeObject(message);
+                output.flush();
+            }
+        } catch (IOException e) {
+            System.err.println("Error sending message to " + username + ": " +
+                    e.getMessage());
+            disconnect();
+        }
+    }
+
+    /**
+     * Disconnect and cleanup
      */
     public void disconnect() {
-        if (!connected) {
-            return; // Already disconnected
+        if (!running)
+            return;
+
+        running = false;
+
+        // Remove from server
+        if (username != null) {
+            server.removeClient(username);
         }
 
-        connected = false;
-
+        // Close streams and socket
         try {
-            // Unregister from server
-            if (username != null) {
-                server.unregisterClient(username, this);
-            }
-
-            // Close streams
-            if (in != null) {
-                in.close();
-            }
-            if (out != null) {
-                out.close();
-            }
-
-            // Close socket
-            if (socket != null && !socket.isClosed()) {
+            if (input != null)
+                input.close();
+            if (output != null)
+                output.close();
+            if (socket != null && !socket.isClosed())
                 socket.close();
-            }
-
-            System.out.println(" Connection closed for: " + username);
-
         } catch (IOException e) {
-            System.err.println("Error disconnecting client " + username + ": " + e.getMessage());
+            System.err.println("Error closing connection: " + e.getMessage());
         }
+
+        System.out.println("ClientHandler for " + username + " terminated");
     }
 
     /**
-     * Get client's username
+     * Get the username of this client
      */
     public String getUsername() {
         return username;
     }
 
     /**
-     * Check if client is still connected
+     * Check if the handler is still running
      */
-    public boolean isConnected() {
-        return connected && socket != null && !socket.isClosed();
+    public boolean isRunning() {
+        return running;
     }
 }
