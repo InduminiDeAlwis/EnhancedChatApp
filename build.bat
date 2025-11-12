@@ -20,7 +20,8 @@ if %errorlevel% neq 0 (
 )
 
 echo Compiling server classes...
-javac -d bin -cp bin src\server\*.java
+REM Compile essential server files (exclude test files and those needing external libs)
+javac -d bin -cp bin src\server\Server.java src\server\ClientHandler.java src\server\AdminConsole.java src\server\ChatLogger.java src\server\HttpFileServer.java src\server\WebAdminServer.java
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile server classes
     pause
