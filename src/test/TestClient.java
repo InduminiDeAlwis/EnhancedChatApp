@@ -241,22 +241,21 @@ public class TestClient {
     }
     
     public static void main(String[] args) {
-        Scanner scanner = new Scanner(System.in);
-        
-        System.out.println("╔══════════════════════════════════════════════════════╗");
-        System.out.println("║            Test Client for Server                    ║");
-        System.out.println("╚══════════════════════════════════════════════════════╝");
-        
-        System.out.print("Enter your username: ");
-        String username = scanner.nextLine().trim();
-        
-        if (username.isEmpty()) {
-            System.out.println("Username cannot be empty!");
-            scanner.close();
-            return;
+        try (Scanner scanner = new Scanner(System.in)) {
+            System.out.println("╔══════════════════════════════════════════════════════╗");
+            System.out.println("║            Test Client for Server                    ║");
+            System.out.println("╚══════════════════════════════════════════════════════╝");
+            
+            System.out.print("Enter your username: ");
+            String username = scanner.nextLine().trim();
+            
+            if (username.isEmpty()) {
+                System.out.println("Username cannot be empty!");
+                return;
+            }
+            
+            TestClient client = new TestClient(username);
+            client.connect();
         }
-        
-        TestClient client = new TestClient(username);
-        client.connect();
     }
 }

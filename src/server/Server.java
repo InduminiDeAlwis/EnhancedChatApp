@@ -21,6 +21,7 @@ public class Server {
     private final Map<String, ClientHandler> clientHandlers;
     private final List<String> onlineUsers;
     private boolean running;
+    @SuppressWarnings("unused")
     private int clientCounter;
     private ChatLogger chatLogger;
     

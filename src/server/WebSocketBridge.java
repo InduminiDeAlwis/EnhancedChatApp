@@ -17,7 +17,10 @@ import java.util.regex.Pattern;
  * Minimal WebSocket bridge to accept browser clients and route messages.
  *
  * NOTE: This class requires the `org.java-websocket` library on the classpath.
+ * This is an OPTIONAL feature for browser clients. The main chat application
+ * works without this using standard Java Sockets.
  */
+@SuppressWarnings({"rawtypes", "unchecked"})
 public class WebSocketBridge extends WebSocketServer {
     // Map username -> WebSocket connection
     private final Map<String, WebSocket> userSockets = new ConcurrentHashMap<>();

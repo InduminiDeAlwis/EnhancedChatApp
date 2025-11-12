@@ -26,7 +26,7 @@ public class ChatClientUI extends JFrame {
         setLocationRelativeTo(null);
 
         JPanel root = new JPanel(new BorderLayout());
-        root.setBorder(BorderFactory.createEmptyBorder(10,10,10,10));
+        root.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         root.setBackground(UIUtils.BACKGROUND);
 
         chatArea = new JTextArea();
@@ -34,11 +34,11 @@ public class ChatClientUI extends JFrame {
         chatArea.setLineWrap(true);
         chatArea.setWrapStyleWord(true);
         chatArea.setBackground(UIUtils.SURFACE);
-        chatArea.setBorder(BorderFactory.createLineBorder(new Color(220,220,220)));
+        chatArea.setBorder(BorderFactory.createLineBorder(new Color(220, 220, 220)));
 
         root.add(new JScrollPane(chatArea), BorderLayout.CENTER);
 
-        JPanel bottomPanel = new JPanel(new BorderLayout(8,8));
+        JPanel bottomPanel = new JPanel(new BorderLayout(8, 8));
         bottomPanel.setOpaque(false);
         messageField = new JTextField();
         UIUtils.styleTextField(messageField);
