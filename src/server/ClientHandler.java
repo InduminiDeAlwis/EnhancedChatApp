@@ -4,235 +4,199 @@ import common.Constants;
 import common.Message;
 import common.MessageType;
 
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
+import java.io.*;
 import java.net.Socket;
 import java.net.SocketException;
 
-/**
- * Handles communication with a single client
- */
 public class ClientHandler implements Runnable {
     private final Socket socket;
-    private final Server server;
     private ObjectOutputStream output;
     private ObjectInputStream input;
     private String username;
     private boolean running;
-    
-    public ClientHandler(Socket socket, Server server) {
+    private boolean isAdmin = false;
+
+    public ClientHandler(Socket socket) {
         this.socket = socket;
-        this.server = server;
         this.running = true;
     }
-    
+
     @Override
     public void run() {
         try {
-            // Initialize streams
             output = new ObjectOutputStream(socket.getOutputStream());
             output.flush();
             input = new ObjectInputStream(socket.getInputStream());
+
+            Message loginMessage = (Message) input.readObject();
             
-            // Authenticate user
-            if (!authenticateUser()) {
+            if (MessageType.ADMIN_LOGIN.equals(loginMessage.getType())) {
+                handleAdminLogin(loginMessage);
+            } else if (MessageType.LOGIN.equals(loginMessage.getType())) {
+                handleClientLogin(loginMessage);
+            } else {
+                sendMessage(new Message(MessageType.ERROR, "SERVER", "Invalid login message"));
                 disconnect();
                 return;
             }
             
-            // Send welcome message
-            sendMessage(new Message(MessageType.SUCCESS, Constants.SERVER_NAME, 
-                Constants.WELCOME_MESSAGE));
-            
-            // Main message handling loop
-            while (running) {
-                try {
-                    Message message = (Message) input.readObject();
-                    if (message != null) {
-                        handleMessage(message);
-                    }
-                } catch (ClassNotFoundException e) {
-                    System.err.println("Invalid message format from " + username);
-                }
+            if (isAdmin) {
+                handleAdminCommands();
+            } else {
+                handleClientMessages();
             }
-            
+
         } catch (SocketException e) {
             System.out.println("Connection lost with " + username);
-        } catch (IOException e) {
+        } catch (IOException | ClassNotFoundException e) {
             if (running) {
-                System.err.println("Error in ClientHandler for " + username + ": " + 
-                    e.getMessage());
+                System.err.println("Error in ClientHandler for " + username + ": " + e.getMessage());
             }
         } finally {
             disconnect();
         }
     }
-    
-    /**
-     * Authenticate the user during login
-     */
-    private boolean authenticateUser() throws IOException {
-        try {
-            Message loginMessage = (Message) input.readObject();
+
+    private void handleAdminLogin(Message loginMessage) throws IOException {
+        String[] credentials = loginMessage.getContent().split(":");
+        
+        if (credentials.length == 2 && 
+            Constants.ADMIN_USERNAME.equals(credentials[0]) && 
+            Constants.ADMIN_PASSWORD.equals(credentials[1])) {
             
-            if (loginMessage.getType() != MessageType.LOGIN) {
-                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME, 
-                    "Invalid login request"));
-                return false;
-            }
+            isAdmin = true;
+            username = "ADMIN";
+            Server.addAdminSocket(socket);
             
-            String requestedUsername = loginMessage.getSender();
+            sendMessage(new Message(MessageType.ADMIN_AUTH_SUCCESS, "SERVER", "Admin authentication successful"));
             
-            // Validate username
-            if (requestedUsername == null || requestedUsername.trim().isEmpty()) {
-                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME, 
-                    "Username cannot be empty"));
-                return false;
-            }
+            sendConnectedClientsList();
+            sendChatHistory();
+            sendSystemStats();
             
-            if (requestedUsername.length() > Constants.MAX_USERNAME_LENGTH) {
-                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME, 
-                    "Username too long (max " + Constants.MAX_USERNAME_LENGTH + " characters)"));
-                return false;
-            }
-            
-            // Check if username is available
-            if (!server.isUsernameAvailable(requestedUsername)) {
-                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME, 
-                    "Username already taken"));
-                return false;
-            }
-            
-            // Register client with server
-            this.username = requestedUsername;
-            if (server.registerClient(username, this)) {
-                sendMessage(new Message(MessageType.LOGIN_SUCCESS, Constants.SERVER_NAME, 
-                    "Login successful. Welcome " + username + "!"));
-                return true;
-            } else {
-                sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME, 
-                    "Failed to register user"));
-                return false;
-            }
-            
-        } catch (ClassNotFoundException e) {
-            sendMessage(new Message(MessageType.LOGIN_FAILED, Constants.SERVER_NAME, 
-                "Invalid login message format"));
-            return false;
+        } else {
+            sendMessage(new Message(MessageType.ADMIN_AUTH_FAILED, "SERVER", "Invalid admin credentials"));
+            disconnect();
         }
     }
-    
-    /**
-     * Handle incoming messages from the client
-     */
-    private void handleMessage(Message message) {
-        if (message == null) return;
+
+    private void handleClientLogin(Message loginMessage) throws IOException {
+        username = loginMessage.getContent();
         
-        System.out.println("Message from " + username + ": " + message.getType());
-        
-        switch (message.getType()) {
-            case PUBLIC_MESSAGE:
-                handlePublicMessage(message);
-                break;
-                
-            case PRIVATE_MESSAGE:
-                handlePrivateMessage(message);
-                break;
-                
-            case FILE_TRANSFER_REQUEST:
-            case FILE_TRANSFER_ACCEPT:
-            case FILE_TRANSFER_REJECT:
-                handleFileTransfer(message);
-                break;
-                
-            case LOGOUT:
-                handleLogout();
-                break;
-                
-            case PING:
-                sendMessage(new Message(MessageType.PONG, Constants.SERVER_NAME, "pong"));
-                break;
-                
-            default:
-                System.out.println("Unhandled message type: " + message.getType());
-                break;
-        }
-    }
-    
-    /**
-     * Handle public messages
-     */
-    private void handlePublicMessage(Message message) {
-        // Validate message
-        if (message.getContent() == null || message.getContent().trim().isEmpty()) {
-            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME, 
-                "Message cannot be empty"));
+        if (username == null || username.trim().isEmpty()) {
+            sendMessage(new Message(MessageType.ERROR, "SERVER", "Username cannot be empty"));
+            disconnect();
             return;
         }
         
-        if (message.getContent().length() > Constants.MAX_MESSAGE_LENGTH) {
-            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME, 
-                "Message too long (max " + Constants.MAX_MESSAGE_LENGTH + " characters)"));
+        if (username.length() > Constants.MAX_USERNAME_LENGTH) {
+            sendMessage(new Message(MessageType.ERROR, "SERVER", "Username too long"));
+            disconnect();
             return;
         }
         
-        // Set sender to authenticated username
-        message.setSender(username);
-        
-        // Broadcast to all clients
-        server.broadcastMessage(message);
-    }
-    
-    /**
-     * Handle private messages
-     */
-    private void handlePrivateMessage(Message message) {
-        String receiver = message.getReceiver();
-        
-        if (receiver == null || receiver.trim().isEmpty()) {
-            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME, 
-                "Receiver not specified"));
+        if (Server.getConnectedClients().stream().anyMatch(c -> c.contains(username))) {
+            sendMessage(new Message(MessageType.ERROR, "SERVER", "Username already taken"));
+            disconnect();
             return;
         }
         
-        // Validate message content
-        if (message.getContent() == null || message.getContent().trim().isEmpty()) {
-            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME, 
-                "Message cannot be empty"));
-            return;
+        Server.addClient(username, this);
+        sendMessage(new Message(MessageType.LOGIN, "SERVER", "Login successful"));
+    }
+
+    private void handleAdminCommands() throws IOException, ClassNotFoundException {
+        while (running) {
+            Message message = (Message) input.readObject();
+            String messageType = message.getType();
+            
+            switch (messageType) {
+                case MessageType.GET_CONNECTED_CLIENTS:
+                    sendConnectedClientsList();
+                    break;
+                    
+                case MessageType.GET_CHAT_HISTORY:
+                    sendChatHistory();
+                    break;
+                    
+                case MessageType.GET_SYSTEM_STATS:
+                    sendSystemStats();
+                    break;
+                    
+                case MessageType.KICK_USER:
+                    handleKickUser(message.getContent());
+                    break;
+                    
+                case MessageType.LOGOUT:
+                    return;
+                    
+                default:
+                    sendMessage(new Message(MessageType.ERROR, "SERVER", "Unknown command"));
+            }
+        }
+    }
+
+    private void handleClientMessages() throws IOException, ClassNotFoundException {
+        while (running) {
+            Message message = (Message) input.readObject();
+            String messageType = message.getType();
+            
+            switch (messageType) {
+                case MessageType.PUBLIC_MESSAGE:
+                    Server.broadcastMessage(new Message(MessageType.MESSAGE_BROADCAST, username, message.getContent()));
+                    break;
+                    
+                case MessageType.PRIVATE_MESSAGE:
+                    Server.sendPrivateMessage(username, message.getReceiver(), message.getContent());
+                    break;
+                    
+                case MessageType.FILE_TRANSFER:
+                    Server.incrementFileTransfers();
+                    break;
+                    
+                case MessageType.LOGOUT:
+                    return;
+                    
+                default:
+                    sendMessage(new Message(MessageType.ERROR, "SERVER", "Unknown message type"));
+            }
+        }
+    }
+
+    private void sendConnectedClientsList() throws IOException {
+        String clientList = String.join("\n", Server.getConnectedClients());
+        if (clientList.isEmpty()) {
+            clientList = "No clients connected";
+        }
+        sendMessage(new Message(MessageType.CONNECTED_CLIENTS_LIST, "SERVER", clientList));
+    }
+
+    private void sendChatHistory() throws IOException {
+        StringBuilder history = new StringBuilder();
+        for (Message msg : Server.getChatHistory()) {
+            history.append(msg.toString()).append("\n");
         }
         
-        // Set sender to authenticated username
-        message.setSender(username);
+        if (history.length() == 0) {
+            history.append("No chat history available");
+        }
         
-        // Use PrivateChatHandler to route the message
-        PrivateChatHandler privateChatHandler = new PrivateChatHandler(server);
-        if (!privateChatHandler.routePrivateMessage(message)) {
-            sendMessage(new Message(MessageType.ERROR, Constants.SERVER_NAME, 
-                "Failed to send private message. User may be offline."));
+        sendMessage(new Message(MessageType.CHAT_HISTORY_DATA, "SERVER", history.toString()));
+    }
+
+    private void sendSystemStats() throws IOException {
+        String stats = Server.getSystemStats();
+        sendMessage(new Message(MessageType.SYSTEM_STATS_DATA, "SERVER", stats));
+    }
+
+    private void handleKickUser(String targetUsername) throws IOException {
+        if (Server.kickUser(targetUsername)) {
+            sendMessage(new Message(MessageType.KICK_SUCCESS, "SERVER", "User " + targetUsername + " has been kicked"));
+        } else {
+            sendMessage(new Message(MessageType.KICK_FAILED, "SERVER", "User " + targetUsername + " not found"));
         }
     }
-    
-    /**
-     * Handle file transfer messages
-     */
-    private void handleFileTransfer(Message message) {
-        PrivateChatHandler privateChatHandler = new PrivateChatHandler(server);
-        privateChatHandler.handleFileTransfer(message);
-    }
-    
-    /**
-     * Handle logout request
-     */
-    private void handleLogout() {
-        System.out.println("User " + username + " requested logout");
-        disconnect();
-    }
-    
-    /**
-     * Send a message to this client
-     */
+
     public synchronized void sendMessage(Message message) {
         try {
             if (output != null && socket.isConnected() && !socket.isClosed()) {
@@ -240,26 +204,22 @@ public class ClientHandler implements Runnable {
                 output.flush();
             }
         } catch (IOException e) {
-            System.err.println("Error sending message to " + username + ": " + 
-                e.getMessage());
+            System.err.println("Error sending message to " + username + ": " + e.getMessage());
             disconnect();
         }
     }
-    
-    /**
-     * Disconnect and cleanup
-     */
+
     public void disconnect() {
         if (!running) return;
         
         running = false;
         
-        // Remove from server
-        if (username != null) {
-            server.removeClient(username);
+        if (isAdmin) {
+            Server.removeAdminSocket(socket);
+        } else if (username != null) {
+            Server.removeClient(username);
         }
         
-        // Close streams and socket
         try {
             if (input != null) input.close();
             if (output != null) output.close();
@@ -267,21 +227,17 @@ public class ClientHandler implements Runnable {
         } catch (IOException e) {
             System.err.println("Error closing connection: " + e.getMessage());
         }
-        
-        System.out.println("ClientHandler for " + username + " terminated");
     }
-    
-    /**
-     * Get the username of this client
-     */
+
     public String getUsername() {
         return username;
     }
+
+    public String getClientAddress() {
+        return socket.getInetAddress().getHostAddress();
+    }
     
-    /**
-     * Check if the handler is still running
-     */
     public boolean isRunning() {
-        return running;
+        return running && !socket.isClosed();
     }
 }

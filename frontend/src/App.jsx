@@ -15,20 +15,19 @@ function formatTime(ts){
 
 function MessageBubble({ m, me, showSender }) {
   const cls = m.sender === '[system]' ? 'msg-system' : (me ? 'msg-me' : 'msg-they');
-  return (
-    <div className={`msg ${cls} ${showSender? 'first-of-group':''}`}>
-      {showSender && m.sender !== '[system]' && (
-        <div className="msg-header">
-          <Avatar name={m.sender} size={32} />
-          <div className="msg-meta">
-            <div className="msg-sender">{m.sender}</div>
-            <div className="msg-time muted">{formatTime(m.receivedAt)}</div>
-          </div>
-        </div>
-      )}
 
+  // Check if message contains a file link
+  const fileUrlMatch = m.content.match(/http:\/\/[^\s]+\/files\/[^\s]+/);
+  const hasFileLink = fileUrlMatch !== null;
+
+  // Extract filename from message (format: "📎 filename — url")
+  const filenameMatch = m.content.match(/📎\s+([^\s—]+)/);
+  const filename = filenameMatch ? filenameMatch[1] : 'Download File';
+
+  return (
+    <div className={`msg ${cls}`}>
+      <div className="msg-sender">{m.sender}</div>
       <div className="msg-content">{m.content}</div>
-      {!showSender && <div className="msg-time small">{formatTime(m.receivedAt)}</div>}
     </div>
   )
 }
@@ -175,16 +174,14 @@ export default function App() {
       <div className="app-body">
         <aside className="sidebar">
           <div className="login">
-            {connected ? (
-              <div className="status">Connected as <strong>{username}</strong> <button className="btn small neon-btn" onClick={disconnect}>Disconnect</button></div>
+            {!connected ? (
+              <>
+                <input className="input-username" placeholder="Your name" value={username} onChange={e=>setUsername(e.target.value)} />
+                <button className="btn" onClick={connect} disabled={!username}>Connect</button>
+              </>
             ) : (
-              <div className="status muted">Not connected</div>
+              <div className="status">Connected as <strong>{username}</strong></div>
             )}
-            <div className="conn-controls">
-              {connecting && <div className="muted">Connecting... (attempt {retries})</div>}
-              {!connected && !connecting && <button className="btn small neon-btn" onClick={()=>{ if(username) connect(); else setShowLogin(true) }}>{username? 'Connect': 'Sign in'}</button>}
-              {(!connected && retries>0) && <button className="btn small ghost" onClick={()=>{ if (reconnectTimerRef.current) { clearTimeout(reconnectTimerRef.current); reconnectTimerRef.current = null } connect() }}>Reconnect now</button>}
-            </div>
           </div>
 
           <div className="users">
@@ -204,15 +201,13 @@ export default function App() {
 
         <main className="chat">
           <div className="msg-list" ref={listRef}>
-            {messages.map((m,i) => {
-              const prev = messages[i-1];
-              const showSender = !prev || prev.sender !== m.sender || (m.sender === '[system]');
-              return <MessageBubble key={i} m={m} me={m.sender === username} showSender={showSender} />
-            })}
+            {messages.map((m,i) => (
+              <MessageBubble key={i} m={m} me={m.sender === username} />
+            ))}
           </div>
 
           <form className="composer" onSubmit={submitMessage}>
-            <textarea className="txt" placeholder={selectedUser?`Whisper to ${selectedUser}`:'Type a message'} value={text} onChange={e=>setText(e.target.value)} onKeyDown={handleKeyDown} rows={1} />
+            <input className="txt" placeholder="Type a message" value={text} onChange={e=>setText(e.target.value)} />
             <label className="file-btn">📎
               <input type="file" onChange={uploadFile} />
             </label>

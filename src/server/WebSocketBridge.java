@@ -17,7 +17,10 @@ import java.util.regex.Pattern;
  * Minimal WebSocket bridge to accept browser clients and route messages.
  *
  * NOTE: This class requires the `org.java-websocket` library on the classpath.
+ * This is an OPTIONAL feature for browser clients. The main chat application
+ * works without this using standard Java Sockets.
  */
+@SuppressWarnings({ "rawtypes", "unchecked" })
 public class WebSocketBridge extends WebSocketServer {
     // Map username -> WebSocket connection
     private final Map<String, WebSocket> userSockets = new ConcurrentHashMap<>();
@@ -43,7 +46,8 @@ public class WebSocketBridge extends WebSocketServer {
     public void onMessage(WebSocket conn, String message) {
         try {
             Message msg = parseJsonMessage(message);
-            if (msg == null) return;
+            if (msg == null)
+                return;
 
             if (msg.getType() == MessageType.LOGIN) {
                 // register user
@@ -54,10 +58,10 @@ public class WebSocketBridge extends WebSocketServer {
                 userSockets.remove(msg.getSender());
                 broadcastJson(buildSystemMessageJson(msg.getSender() + " left."));
                 return;
-            } else if (msg.getType() == MessageType.BROADCAST) {
+            } else if (MessageType.BROADCAST.equals(msg.getType())) {
                 broadcastJson(toJson(msg));
                 return;
-            } else if (msg.getType() == MessageType.PRIVATE) {
+            } else if (MessageType.PRIVATE.equals(msg.getType())) {
                 String target = msg.getTargetUser();
                 WebSocket targetConn = userSockets.get(target);
                 if (targetConn != null) {
@@ -87,27 +91,25 @@ public class WebSocketBridge extends WebSocketServer {
     // Very small JSON parser for our message shape. Expects JSON like:
     // {"type":"BROADCAST","sender":"alice","content":"Hello","targetUser":"bob"}
     private Message parseJsonMessage(String json) {
-        if (json == null) return null;
+        if (json == null)
+            return null;
         String type = extractString(json, "type");
         String sender = extractString(json, "sender");
         String content = extractString(json, "content");
         String target = extractString(json, "targetUser");
 
-        MessageType mt = null;
-        try {
-            mt = MessageType.valueOf(type);
-        } catch (Exception e) {
-            mt = MessageType.BROADCAST; // fallback
-        }
+        String mt = type != null ? type : MessageType.BROADCAST; // fallback
         Message m = new Message(mt, sender, content);
-        if (target != null) m.setTargetUser(target);
+        if (target != null)
+            m.setTargetUser(target);
         return m;
     }
 
     private String extractString(String json, String key) {
         Pattern p = Pattern.compile("\"" + key + "\"\\s*:\\s*\"(.*?)\"");
         Matcher m = p.matcher(json);
-        if (m.find()) return m.group(1);
+        if (m.find())
+            return m.group(1);
         return null;
     }
 
@@ -136,7 +138,8 @@ public class WebSocketBridge extends WebSocketServer {
     }
 
     private String escape(String s) {
-        if (s == null) return "";
+        if (s == null)
+            return "";
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n");
     }
 

@@ -7,7 +7,11 @@ import java.net.URI;
 
 /**
  * Small WebSocket client to test the WebSocketBridge server.
+ * NOTE: This is an OPTIONAL test class requiring the org.java-websocket
+ * library.
+ * The main chat application works without this using standard Java Sockets.
  */
+@SuppressWarnings({ "rawtypes", "unchecked" })
 public class TestWsClient {
     public static void main(String[] args) throws Exception {
         URI uri = new URI("ws://127.0.0.1:8080");
