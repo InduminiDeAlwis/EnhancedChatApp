@@ -236,4 +236,8 @@ public class ClientHandler implements Runnable {
     public String getClientAddress() {
         return socket.getInetAddress().getHostAddress();
     }
+    
+    public boolean isRunning() {
+        return running && !socket.isClosed();
+    }
 }

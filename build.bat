@@ -20,7 +20,7 @@ if %errorlevel% neq 0 (
 )
 
 echo Compiling server classes...
-javac -d bin -cp bin src\server\*.java
+javac -d bin -cp "bin;lib\Java-WebSocket-1.5.3.jar" src\server\*.java
 if %errorlevel% neq 0 (
     echo ERROR: Failed to compile server classes
     pause

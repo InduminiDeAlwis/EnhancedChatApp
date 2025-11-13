@@ -58,10 +58,10 @@ public class WebSocketBridge extends WebSocketServer {
                 userSockets.remove(msg.getSender());
                 broadcastJson(buildSystemMessageJson(msg.getSender() + " left."));
                 return;
-            } else if (msg.getType() == MessageType.BROADCAST) {
+            } else if (MessageType.BROADCAST.equals(msg.getType())) {
                 broadcastJson(toJson(msg));
                 return;
-            } else if (msg.getType() == MessageType.PRIVATE) {
+            } else if (MessageType.PRIVATE.equals(msg.getType())) {
                 String target = msg.getTargetUser();
                 WebSocket targetConn = userSockets.get(target);
                 if (targetConn != null) {
@@ -98,12 +98,7 @@ public class WebSocketBridge extends WebSocketServer {
         String content = extractString(json, "content");
         String target = extractString(json, "targetUser");
 
-        MessageType mt = null;
-        try {
-            mt = MessageType.valueOf(type);
-        } catch (Exception e) {
-            mt = MessageType.BROADCAST; // fallback
-        }
+        String mt = type != null ? type : MessageType.BROADCAST; // fallback
         Message m = new Message(mt, sender, content);
         if (target != null)
             m.setTargetUser(target);

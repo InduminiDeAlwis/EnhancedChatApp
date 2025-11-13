@@ -54,7 +54,7 @@ public class PrivateChatHandler {
     public void handleFileTransfer(Message message) {
         String sender = message.getSender();
         String receiver = message.getReceiver();
-        MessageType type = message.getType();
+        String type = message.getType();
 
         System.out.println("File transfer " + type + ": " + sender + " -> " + receiver);
 
@@ -71,31 +71,31 @@ public class PrivateChatHandler {
         }
 
         switch (type) {
-            case FILE_TRANSFER_REQUEST:
+            case MessageType.FILE_TRANSFER_REQUEST:
                 handleFileTransferRequest(message, receiverHandler);
                 break;
 
-            case FILE_TRANSFER_ACCEPT:
+            case MessageType.FILE_TRANSFER_ACCEPT:
                 handleFileTransferAccept(message, receiverHandler);
                 break;
 
-            case FILE_TRANSFER_REJECT:
+            case MessageType.FILE_TRANSFER_REJECT:
                 handleFileTransferReject(message, receiverHandler);
                 break;
 
-            case FILE_METADATA:
+            case MessageType.FILE_METADATA:
                 handleFileMetadata(message, receiverHandler);
                 break;
 
-            case FILE_COMPLETE:
+            case MessageType.FILE_COMPLETE:
                 handleFileComplete(message, receiverHandler);
                 break;
 
-            case FILE_ERROR:
+            case MessageType.FILE_ERROR:
                 handleFileError(message, receiverHandler);
                 break;
 
-            case FILE_PROGRESS:
+            case MessageType.FILE_PROGRESS:
                 handleFileProgress(message, receiverHandler);
                 break;
 

@@ -26,6 +26,9 @@ public class Server {
     private static int totalFilesTransferred = 0;
     private static LocalDateTime serverStartTime;
     
+    // Chat logger instance
+    private static ChatLogger chatLogger = new ChatLogger();
+    
     public static void main(String[] args) {
         serverStartTime = LocalDateTime.now();
         System.out.println("=".repeat(50));
@@ -189,6 +192,16 @@ public class Server {
     // Update all admin consoles with latest info
     private static void updateAdminConsoles() {
         // This will be called by admin handlers when they request updates
+    }
+    
+    // Get client handler by username
+    public static ClientHandler getClientHandler(String username) {
+        return clients.get(username);
+    }
+    
+    // Get chat logger
+    public static ChatLogger getChatLogger() {
+        return chatLogger;
     }
     
     // Shutdown server

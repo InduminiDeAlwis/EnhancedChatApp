@@ -7,6 +7,6 @@ echo Starting server...
 echo Web Admin Console: http://localhost:8080/admin
 echo.
 
-java -cp bin server.Server
+java -cp "bin;lib\Java-WebSocket-1.5.3.jar" server.Server
 
 pause

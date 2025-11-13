@@ -11,6 +11,5 @@ if not exist "bin\server\Server.class" (
     exit /b 1
 )
 
-cd bin
-java server.Server
+java -cp "bin;lib\Java-WebSocket-1.5.3.jar" server.Server
 pause
