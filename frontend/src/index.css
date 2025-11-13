@@ -9,7 +9,18 @@
 *{box-sizing:border-box}
 body{margin:0;background:linear-gradient(180deg,#071024 0%, #081427 100%);font-family:Inter,Segoe UI,Arial,sans-serif;color:#e6eef6}
 .app-root{display:flex;flex-direction:column;height:100vh}
-.app-header{padding:16px 20px;font-size:18px;font-weight:600;background:transparent;border-bottom:1px solid rgba(255,255,255,0.04)}
+.app-header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;font-size:16px;font-weight:600;background:transparent;border-bottom:1px solid rgba(255,255,255,0.04)}
+.header-left{display:flex;flex-direction:column}
+.logo{font-weight:700}
+.room-muted{font-size:12px;color:var(--muted);margin-top:2px}
+.tagline{font-size:12px;color:#9fd8de;margin-top:4px}
+.neon-bar{height:4px;border-radius:6px;margin-top:8px;width:140px;background:linear-gradient(90deg, rgba(94,234,212,0.9), rgba(99,102,241,0.9));box-shadow:0 6px 20px rgba(94,234,212,0.08)}
+.logo.neon{font-weight:900;font-size:18px;letter-spacing:0.6px;background:linear-gradient(90deg,#7efcf6,#2af598,#6a11cb);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 12px rgba(122,255,230,0.12),0 0 24px rgba(106,17,203,0.06)}
+.header-right{display:flex;align-items:center;gap:10px}
+.status-dot{width:10px;height:10px;border-radius:50%}
+.status-dot.online{background:#22c55e}
+.status-dot.offline{background:#f97316}
+.header-info{font-size:13px}
 .app-body{display:flex;flex:1;gap:12px;padding:16px}
 .sidebar{width:260px;background:rgba(255,255,255,0.03);border-radius:12px;padding:12px;display:flex;flex-direction:column}
 .login{margin-bottom:12px}
@@ -19,22 +30,72 @@ body{margin:0;background:linear-gradient(180deg,#071024 0%, #081427 100%);font-f
 .users{margin-top:8px;flex:1;overflow:auto}
 .users-title{font-size:12px;color:var(--muted);margin-bottom:6px}
 .users ul{list-style:none;padding:0;margin:0}
-.users li{padding:8px;border-radius:6px;margin-bottom:6px;background:rgba(255,255,255,0.01)}
+.users li{display:flex;align-items:center;gap:8px;padding:8px;border-radius:6px;margin-bottom:6px;background:rgba(255,255,255,0.01);cursor:pointer}
+.users li.selected{background:linear-gradient(90deg,rgba(94,234,212,0.12),rgba(99,102,241,0.06))}
+.user-name{font-size:14px}
 .muted{color:var(--muted)}
 .chat{flex:1;display:flex;flex-direction:column}
 .msg-list{flex:1;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));padding:14px;border-radius:12px;overflow:auto}
-.msg{max-width:70%;margin-bottom:10px;padding:8px 12px;border-radius:10px;box-shadow:0 2px 6px rgba(2,6,23,0.6)}
-.msg-sender{font-size:11px;color:var(--muted);margin-bottom:4px}
+.msg{max-width:72%;margin-bottom:10px;padding:10px;border-radius:12px;box-shadow:0 4px 12px rgba(2,6,23,0.6)}
+.msg-header{display:flex;gap:8px;align-items:center;margin-bottom:6px}
+.avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(180deg,#1e293b,#0b1220);display:inline-flex;align-items:center;justify-content:center;color:var(--accent);font-weight:700}
+.msg-meta{display:flex;flex-direction:column}
+.msg-sender{font-size:13px;color:#cfeef7}
+.msg-time{font-size:11px;color:var(--muted)}
+.small{font-size:11px}
 .msg-content{font-size:14px}
 .msg-me{margin-left:auto;background:linear-gradient(90deg,var(--me),#60a5fa);color:white}
-.msg-they{margin-right:auto;background:#0b1220;border:1px solid rgba(255,255,255,0.02)}
+.msg-they{margin-right:auto;background:#0b1220;border:1px solid rgba(255,255,255,0.02);color:#e6eef6}
 .msg-system{margin:0 auto;background:transparent;color:var(--muted);font-style:italic}
+.first-of-group{padding-top:6px}
 .composer{display:flex;gap:8px;margin-top:12px}
-.txt{flex:1;padding:12px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+.txt{flex:1;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;resize:none;min-height:40px}
 .file-btn{display:inline-flex;align-items:center;padding:8px;border-radius:8px;background:rgba(255,255,255,0.02);cursor:pointer}
 .file-btn input{display:none}
 .send{background:linear-gradient(90deg,var(--accent),#34d399);color:#042027}
 .app-footer{padding:8px 16px;font-size:13px;color:var(--muted);text-align:right}
+
+.status-line{padding:6px 14px;font-size:13px;color:var(--muted)}
+
+.users-footer{font-size:12px;margin-top:8px}
+
+/* Modal login */
+.modal-backdrop{position:fixed;inset:0;background:rgba(2,6,23,0.6);display:flex;align-items:center;justify-content:center;z-index:80}
+.modal{background:linear-gradient(180deg,#071428,#061227);padding:18px;border-radius:10px;box-shadow:0 12px 40px rgba(2,6,23,0.8);min-width:320px}
+.modal h3{margin:0 0 8px 0}
+.modal-input{width:100%;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit}
+.btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted)}
+.btn.small{padding:6px 8px;font-size:13px}
+
+/* subtle spinner for connecting */
+.spinner{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,0.08);border-top-color:var(--accent);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* small helpers */
+.conn-controls{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+
+/* pop-in animation for modal */
+.modal-backdrop{animation:fadeIn 180ms ease-out}
+.modal{transform:translateY(6px) scale(.98);opacity:0;animation:popIn 220ms cubic-bezier(.16,1,.3,1) forwards}
+@keyframes popIn{from{transform:translateY(14px) scale(.96);opacity:0}to{transform:translateY(0) scale(1);opacity:1}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* neon button */
+.neon-btn{position:relative;overflow:visible}
+.neon-btn{box-shadow:0 6px 18px rgba(58,210,170,0.06);border:none}
+.neon-btn:hover{box-shadow:0 10px 30px rgba(58,210,170,0.12),0 0 18px rgba(106,17,203,0.08);transform:translateY(-1px)}
+.neon-btn:active{transform:translateY(0)}
+.neon-btn::after{content:'';position:absolute;inset:-2px;border-radius:8px;background:linear-gradient(90deg, rgba(94,234,212,0.12), rgba(99,102,241,0.08));filter:blur(8px);opacity:0;transition:opacity .18s}
+.neon-btn:hover::after{opacity:1}
+
+/* header glow */
+.app-header{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));backdrop-filter:blur(6px)}
+
+/* small responsive tweaks for modal on mobile */
+@media (max-width:520px){
+	.modal{min-width:90%;padding:14px}
+	.neon-bar{width:100px}
+}
 
 @media (max-width:800px){
 	.app-body{flex-direction:column;padding:12px}
